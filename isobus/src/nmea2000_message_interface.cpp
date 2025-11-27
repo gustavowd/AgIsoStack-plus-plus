@@ -694,7 +694,7 @@ namespace isobus
 			receivedGNSSPositionDataMessages.erase(std::remove_if(receivedGNSSPositionDataMessages.begin(),
 			                                                      receivedGNSSPositionDataMessages.end(),
 			                                                      [](std::shared_ptr<GNSSPositionData> message) {
-				                                                      if (SystemTiming::time_expired_ms(message->get_timestamp(), 3 * GNSSPositionData::get_timeout()))
+				                                                      if (SystemTiming::time_expired_ms(message->get_timestamp(), 10 * GNSSPositionData::get_timeout()))
 				                                                      {
 					                                                      LOG_WARNING("[NMEA2K]: GNSS position data message Rx timeout.");
 					                                                      return true;
