@@ -873,6 +873,8 @@ namespace isobus
 		{
 			std::string softIDString = "";
 
+			softIDString.push_back(static_cast<char>(softwareIdentificationFields.size()));
+
 			std::for_each(softwareIdentificationFields.begin(),
 			              softwareIdentificationFields.end(),
 			              [&softIDString](const std::string &field) {

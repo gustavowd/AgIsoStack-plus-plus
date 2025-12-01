@@ -14,6 +14,8 @@
 #include "isobus/isobus/can_transport_protocol.hpp"
 #include "isobus/isobus/can_message.hpp"
 
+#include "isobus/isobus/isobus_diagnostic_protocol.hpp"
+
 #include <atomic>
 #include <chrono>
 #include <csignal>
@@ -211,6 +213,7 @@ std::shared_ptr<isobus::PartneredControlFunction> findECUByAddress(int address) 
     return nullptr; // ECU não encontrado na rede
 }
 
+/*
 // Função para construir mensagem ECU Information
 std::vector<uint8_t> build_ecu_information_message() {
     std::vector<uint8_t> message;
@@ -256,6 +259,7 @@ std::vector<uint8_t> build_ecu_information_message() {
     
     return message;
 }
+
 
 // Função auxiliar para enviar resposta multipacket
 bool send_multipacket_response(
@@ -309,23 +313,15 @@ bool handle_ecu_info_request(
 	
 	return success;
 }
+*/
 
 int main()
 {
 	std::signal(SIGINT, signal_handler);
 
 	std::shared_ptr<isobus::CANHardwarePlugin> canDriver = nullptr;
-#if defined(ISOBUS_SOCKETCAN_AVAILABLE)
 	canDriver = std::make_shared<isobus::SocketCANInterface>("can0");
-#elif defined(ISOBUS_WINDOWSPCANBASIC_AVAILABLE)
-	canDriver = std::make_shared<isobus::PCANBasicWindowsPlugin>(PCAN_USBBUS1);
-#elif defined(ISOBUS_WINDOWSINNOMAKERUSB2CAN_AVAILABLE)
-	canDriver = std::make_shared<isobus::InnoMakerUSB2CANWindowsPlugin>(0); // CAN0
-#elif defined(ISOBUS_MACCANPCAN_AVAILABLE)
-	canDriver = std::make_shared<isobus::MacCANPCANPlugin>(PCAN_USBBUS1);
-#elif defined(ISOBUS_SYS_TEC_AVAILABLE)
-	canDriver = std::make_shared<isobus::SysTecWindowsPlugin>();
-#endif
+
 	if (nullptr == canDriver)
 	{
 		std::cout << "Unable to find a CAN driver. Please make sure you have one of the above drivers installed with the library." << std::endl;
@@ -333,6 +329,7 @@ int main()
 		return -1;
 	}
 
+	// Define o número de canais CAN e atribui o driver ao canal 0
 	isobus::CANHardwareInterface::set_number_of_can_channels(1);
 	isobus::CANHardwareInterface::assign_can_channel_frame_handler(0, canDriver);
 
@@ -343,9 +340,8 @@ int main()
 	}
 	std::this_thread::sleep_for(std::chrono::milliseconds(250));
 
+	// Define o NAME do ECU que é utilizado no processo de reivindicação de endereço
 	isobus::NAME TestDeviceNAME(0);
-
-	//! Make sure you change these for your device!!!!
 	TestDeviceNAME.set_arbitrary_address_capable(true);
 	TestDeviceNAME.set_industry_group(0);
 	TestDeviceNAME.set_device_class(0);
@@ -356,9 +352,15 @@ int main()
 	TestDeviceNAME.set_device_class_instance(0);
 	TestDeviceNAME.set_manufacturer_code(1407);
 
+	// Cria uma instância de ECU interna para este ECU
 	auto TestInternalECU = isobus::CANNetworkManager::CANNetwork.create_internal_control_function(TestDeviceNAME, 0);
 
-	// Make sure address claiming is done before we continue
+	static CustomLogger logger;
+	isobus::CANStackLogger::set_can_stack_logger_sink(&logger);
+	// If you want to change the logging level, you can do so as followed; the default level is INFO.
+	isobus::CANStackLogger::set_log_level(isobus::CANStackLogger::LoggingLevel::Debug);
+
+	// Garante que o processo de reivindicação de endereço ocorra antes de prosseguir
 	auto addressClaimedFuture = std::async(std::launch::async, [&TestInternalECU]() {
 		while (!TestInternalECU->get_address_valid())
 			std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -368,6 +370,71 @@ int main()
 		std::cout << "Address claiming failed. Please make sure that your internal control function can claim a valid address." << std::endl;
 		return -3;
 	}
+
+	// Inicializa o protocolo de diagnóstico do protocolo J1939
+	isobus::DiagnosticProtocol diagnosticProtocol(TestInternalECU);
+	//isobus::DiagnosticProtocol diagnosticProtocol(TestInternalECU, (isobus::DiagnosticProtocol::TransmitFlags::ProductIdentification | isobus::DiagnosticProtocol::TransmitFlags::ECUIdentification | isobus::DiagnosticProtocol::TransmitFlags::SoftwareIdentification));
+	diagnosticProtocol.initialize();
+	diagnosticProtocol.set_j1939_mode(true); // Ativa o modo J1939 (desativa OBD2 específico para veículos leves)
+
+	// Set a product identification string (in case someone requests it)
+	diagnosticProtocol.set_product_identification_code("1234567890ABC");
+	diagnosticProtocol.set_product_identification_brand("Open-Agriculture");
+	diagnosticProtocol.set_product_identification_model("AgIsoStack++ CAN Stack DP Example");
+
+	// Set a software ID string (This is what tells other ECUs what version your software is)
+	diagnosticProtocol.set_software_id_field(0, "Diagnostic Protocol Example 1.0.0");
+	diagnosticProtocol.set_software_id_field(1, "Another version string x.x.x.x");
+
+	// Set an ECU ID (This is what tells other ECUs more details about your specific physical ECU)
+	diagnosticProtocol.set_ecu_id_field(isobus::DiagnosticProtocol::ECUIdentificationFields::HardwareID, "Hardware ID");
+	diagnosticProtocol.set_ecu_id_field(isobus::DiagnosticProtocol::ECUIdentificationFields::Location, "The Aether");
+	diagnosticProtocol.set_ecu_id_field(isobus::DiagnosticProtocol::ECUIdentificationFields::ManufacturerName, "None");
+	diagnosticProtocol.set_ecu_id_field(isobus::DiagnosticProtocol::ECUIdentificationFields::PartNumber, "1234");
+	diagnosticProtocol.set_ecu_id_field(isobus::DiagnosticProtocol::ECUIdentificationFields::SerialNumber, "1");
+	diagnosticProtocol.set_ecu_id_field(isobus::DiagnosticProtocol::ECUIdentificationFields::Type, "AgISOStack");
+
+	// Important: we need to update the diagnostic protocol using the hardware interface periodic update event,
+	// otherwise the diagnostic protocol will not be able to update its internal state.
+	isobus::CANHardwareInterface::get_periodic_update_event_dispatcher().add_listener([&diagnosticProtocol]() {
+		diagnosticProtocol.update();
+	});
+	std::cout << "Diagnostic Protocol initialized." << std::endl;
+
+	// Make a few test DTCs
+	isobus::DiagnosticProtocol::DiagnosticTroubleCode testDTC1(1234, isobus::DiagnosticProtocol::FailureModeIdentifier::ConditionExists, isobus::DiagnosticProtocol::LampStatus::None);
+	isobus::DiagnosticProtocol::DiagnosticTroubleCode testDTC2(567, isobus::DiagnosticProtocol::FailureModeIdentifier::DataErratic, isobus::DiagnosticProtocol::LampStatus::AmberWarningLampSlowFlash);
+	isobus::DiagnosticProtocol::DiagnosticTroubleCode testDTC3(8910, isobus::DiagnosticProtocol::FailureModeIdentifier::BadIntelligentDevice, isobus::DiagnosticProtocol::LampStatus::RedStopLampSolid);
+
+	/*
+	// Let's say that our ECU has the capability of a universal terminal working set (as an example) and
+	// contains weak internal bus termination.
+	// This info gets reported to any ECU on the bus that requests our capabilities through the
+	// control function functionalities message.
+	diagnosticProtocol.ControlFunctionFunctionalitiesMessageInterface.set_functionality_is_supported(isobus::ControlFunctionFunctionalities::Functionalities::MinimumControlFunction, 1, true);
+	diagnosticProtocol.ControlFunctionFunctionalitiesMessageInterface.set_minimum_control_function_option_state(isobus::ControlFunctionFunctionalities::MinimumControlFunctionOptions::Type1ECUInternalWeakTermination, true);
+	diagnosticProtocol.ControlFunctionFunctionalitiesMessageInterface.set_functionality_is_supported(isobus::ControlFunctionFunctionalities::Functionalities::UniversalTerminalWorkingSet, 1, true);
+	*/
+
+	// Set the DTCs active. This should put them in the DM1 message
+	diagnosticProtocol.set_diagnostic_trouble_code_active(testDTC1, true);
+	diagnosticProtocol.set_diagnostic_trouble_code_active(testDTC2, true);
+	diagnosticProtocol.set_diagnostic_trouble_code_active(testDTC3, true);
+
+	std::cout << "Diagnostic Trouble Codes set active. (DM1)" << std::endl;
+	std::this_thread::sleep_for(std::chrono::milliseconds(5000)); // Send the DM1 for a while
+
+	// Set the DTCs inactive. This should put them in the DM2 message
+	diagnosticProtocol.set_diagnostic_trouble_code_active(testDTC1, false);
+	diagnosticProtocol.set_diagnostic_trouble_code_active(testDTC2, false);
+	diagnosticProtocol.set_diagnostic_trouble_code_active(testDTC3, false);
+
+	std::cout << "Diagnostic Trouble Codes set inactive. (DM2)" << std::endl;
+	std::this_thread::sleep_for(std::chrono::milliseconds(5000)); // Send the DM2 for a while
+
+	//diagnosticProtocol.clear_inactive_diagnostic_trouble_codes(); // All messages should now be clear!
+	//std::cout << "Diagnostic Trouble Codes cleared." << std::endl;
+	//std::this_thread::sleep_for(std::chrono::milliseconds(5000)); // Wait a bit before proceeding
 
 	// Construct NMEA2K interface, defaulting to all messages disabled
 	isobus::NMEA2000MessageInterface n2kInterface(TestInternalECU, false, false, false, false, false, false, false);
@@ -445,11 +512,6 @@ int main()
 	n2kInterface.get_rate_of_turn_event_publisher().add_listener(on_turn_rate_update);
 	n2kInterface.get_vessel_heading_event_publisher().add_listener(on_vessel_heading_update);
 
-	static CustomLogger logger;
-	isobus::CANStackLogger::set_can_stack_logger_sink(&logger);
-	// If you want to change the logging level, you can do so as followed; the default level is INFO.
-	isobus::CANStackLogger::set_log_level(isobus::CANStackLogger::LoggingLevel::Debug);
-
 	isobus::CANNetworkManager::CANNetwork.add_global_parameter_group_number_callback(static_cast<std::uint32_t>(isobus::CANLibParameterGroupNumber::SoftwareIdentification), bam_software_information_callback, nullptr);
 	
 	// Define callbacks for receiving identification PGNs (after a request for one of these PGNs)
@@ -458,6 +520,7 @@ int main()
 	isobus::CANNetworkManager::CANNetwork.add_any_control_function_parameter_group_number_callback(static_cast<std::uint32_t>(isobus::CANLibParameterGroupNumber::ComponentIdentification), identification_pgn_handler, nullptr);
 
 	// Register callback to handle request for ECU Information
+	/*
 	auto pgn_protocol = TestInternalECU->get_pgn_request_protocol().lock();
 	if (pgn_protocol) {
 		if (pgn_protocol->register_pgn_request_callback(
@@ -473,13 +536,14 @@ int main()
 		// O weak_ptr está expirado
 		std::cout << "Erro: PGN request protocol não está disponível" << std::endl;
 	}
+	*/
 	
 	std::cout << "Starting to send NMEA2K messages. Press Ctrl+C to stop." << std::endl;
 
 	int counter = 0;
 	int counter_seq = 0;
 	int state = 0;
-	std::vector<uint8_t> ecuData = build_ecu_information_message();
+	//std::vector<uint8_t> ecuData = build_ecu_information_message();
 
 	while (running)
 	{
@@ -507,7 +571,7 @@ int main()
 			if (targetECU) {
 				switch (state){
 					case 0:
-						// This is how you would request a PGN from someone else. In this example, we request it from the broadcast address.
+						// This is how you would request a PGN from someone else. In this example, we request it from ECU with address 129.
 						// Generally you'd want to replace nullptr with your partner control function as its a little nicer than just asking everyone on the bus for a PGN
 						isobus::ParameterGroupNumberRequestProtocol::request_parameter_group_number(static_cast<std::uint32_t>(isobus::CANLibParameterGroupNumber::SoftwareIdentification), TestInternalECU, targetECU);
 						break;
@@ -517,7 +581,9 @@ int main()
 					case 2:
 						isobus::ParameterGroupNumberRequestProtocol::request_parameter_group_number(static_cast<std::uint32_t>(isobus::CANLibParameterGroupNumber::ComponentIdentification), TestInternalECU, targetECU);
 						break;
+					/*
 					case 3:
+						// Alternatively, you could also just send the message yourself like this:
 						isobus::CANNetworkManager::CANNetwork.send_can_message(
 							static_cast<std::uint32_t>(isobus::CANLibParameterGroupNumber::ECUIdentificationInformation),
 							ecuData.data(),
@@ -527,12 +593,13 @@ int main()
 							isobus::CANIdentifier::CANPriority::PriorityDefault6
 						);
 						break;
+					*/
 					default:
 						break;
 				}
 			}
 			state++;
-			if (state > 3){
+			if (state > 2){
 				state = 0;
 			}
 			
