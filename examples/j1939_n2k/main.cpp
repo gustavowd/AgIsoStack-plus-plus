@@ -213,49 +213,30 @@ std::shared_ptr<isobus::PartneredControlFunction> findECUByAddress(int address) 
     return nullptr; // ECU não encontrado na rede
 }
 
-/*
-// Função para construir mensagem ECU Information
-std::vector<uint8_t> build_ecu_information_message() {
+
+// Função para construir mensagem Component Information
+std::vector<uint8_t> build_component_information_message() {
     std::vector<uint8_t> message;
-	uint8_t fields = 0;
     
-    // ECU Part Number
-    std::string part_number = "ECU-ENGINE-001";
-    message.insert(message.end(), part_number.begin(), part_number.end());
+    // Make
+    std::string make = "20254";
+    message.insert(message.end(), make.begin(), make.end());
     message.push_back('*'); // Delimiter
-	fields++;
     
-    // ECU Serial Number
-    std::string serial = "SN987654321";
+    // Model Name
+    std::string model = "2025-PPT";
+    message.insert(message.end(), model.begin(), model.end());
+    message.push_back('*'); // Delimiter
+    
+    // Serial Number
+    std::string serial = "1243-13245-1245";
     message.insert(message.end(), serial.begin(), serial.end());
     message.push_back('*'); // Delimiter
-	fields++;
     
-    // ECU Location
-    std::string location = "Engine_Compartment";
-    message.insert(message.end(), location.begin(), location.end());
+    // Unit Number
+    std::string unit_number = "Unit 8K";
+    message.insert(message.end(), unit_number.begin(), unit_number.end());
     message.push_back('*'); // Delimiter
-	fields++;
-    
-    // ECU Type
-    std::string ecu_type = "Engine_Controller";
-    message.insert(message.end(), ecu_type.begin(), ecu_type.end());
-    message.push_back('*'); // Delimiter
-	fields++;
-    
-    // Manufacturer
-    std::string manufacturer = "MyCompany_Ltd";
-    message.insert(message.end(), manufacturer.begin(), manufacturer.end());
-    message.push_back('*'); // Delimiter
-	fields++;
-    
-    // Hardware Version
-    std::string hw_version = "HW_v2.1";
-    message.insert(message.end(), hw_version.begin(), hw_version.end());
-    message.push_back('*'); // Final delimiter
-	fields++;
-
-	message.insert(message.begin(), fields);
     
     return message;
 }
@@ -295,16 +276,16 @@ bool send_multipacket_response(
 
 
 // Implementação do ECU Information
-bool handle_ecu_info_request(
+bool handle_component_information_request(
 								std::uint32_t parameterGroupNumber,
 								std::shared_ptr<isobus::ControlFunction> requestingControlFunction,
 								bool &acknowledge,
 								isobus::AcknowledgementType &acknowledgeType,
 								void *)
 {
-	std::cout << "[PGN Request] - ECU Information pgn:" << parameterGroupNumber << std::endl;
+	std::cout << "[PGN Request] - Component Information pgn:" << parameterGroupNumber << std::endl;
 	
-	std::vector<uint8_t> ecuData = build_ecu_information_message();
+	std::vector<uint8_t> ecuData = build_component_information_message();
 	//std::cout << "Message size: " << ecuData.size() << std::endl;
 	bool success = send_multipacket_response(parameterGroupNumber, ecuData, requestingControlFunction);
 	
@@ -313,7 +294,7 @@ bool handle_ecu_info_request(
 	
 	return success;
 }
-*/
+
 
 int main()
 {
@@ -520,12 +501,11 @@ int main()
 	isobus::CANNetworkManager::CANNetwork.add_any_control_function_parameter_group_number_callback(static_cast<std::uint32_t>(isobus::CANLibParameterGroupNumber::ComponentIdentification), identification_pgn_handler, nullptr);
 
 	// Register callback to handle request for ECU Information
-	/*
 	auto pgn_protocol = TestInternalECU->get_pgn_request_protocol().lock();
 	if (pgn_protocol) {
 		if (pgn_protocol->register_pgn_request_callback(
-			static_cast<std::uint32_t>(isobus::CANLibParameterGroupNumber::ECUIdentificationInformation),
-			handle_ecu_info_request,
+			static_cast<std::uint32_t>(isobus::CANLibParameterGroupNumber::ComponentIdentification),
+			handle_component_information_request,
 			nullptr
 		)) {
 			std::cout << "PGN request protocol callback registered successfully." << std::endl;
@@ -536,7 +516,6 @@ int main()
 		// O weak_ptr está expirado
 		std::cout << "Erro: PGN request protocol não está disponível" << std::endl;
 	}
-	*/
 	
 	std::cout << "Starting to send NMEA2K messages. Press Ctrl+C to stop." << std::endl;
 
