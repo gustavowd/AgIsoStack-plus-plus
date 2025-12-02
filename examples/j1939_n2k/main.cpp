@@ -98,6 +98,30 @@ void identification_pgn_handler(const isobus::CANMessage &message, void *){
 	std::cout << std::endl << std::endl;
 }
 
+void diagnostic_message_pgn_handler(const isobus::CANMessage &message, void *){
+	auto source = message.get_source_control_function();
+	auto identifier = message.get_identifier();
+	auto pgn = identifier.get_parameter_group_number();
+	if (message.is_broadcast()) {
+		// endereço de broadcast
+		std::cout << std::endl << "[BAM] Received Diagnostic PGN " << static_cast<int>(pgn) << " from " << static_cast<int>(source->get_address()) << std::endl;
+	}else{
+		// endereço específico
+		std::cout << std::endl << "[CMTP] Received Diagnostic PGN " << static_cast<int>(pgn) << " from " << static_cast<int>(source->get_address()) << std::endl;
+	}
+  	std::cout << "Data lenght: " << message.get_data_length() << std::endl;
+	auto data_vec = message.get_data();
+	std::cout << "Status das Lâmpadas: " << static_cast<int>(data_vec[0]) << "\n\r";
+	std::cout << "Flash das Lâmpadas: " << static_cast<int>(data_vec[1]) << "\n\r";
+	uint8_t dtc_count = (message.get_data_length() - 2) / 4;
+	if ((data_vec[2] == 0) && (data_vec[3] == 0) && (data_vec[4] == 0) && (data_vec[5] == 0)){
+    	dtc_count = 0;
+    }
+	std::cout << static_cast<int>(dtc_count) << " DTCs ativos!" << "\n\r";
+
+	std::cout << std::endl << std::endl;
+}
+
 bool software_information_pgn_request_handler(std::uint32_t parameterGroupNumber,
                                                std::shared_ptr<isobus::ControlFunction>,
                                                bool &acknowledge,
@@ -499,6 +523,9 @@ int main()
 	isobus::CANNetworkManager::CANNetwork.add_any_control_function_parameter_group_number_callback(static_cast<std::uint32_t>(isobus::CANLibParameterGroupNumber::SoftwareIdentification), identification_pgn_handler, nullptr);
 	isobus::CANNetworkManager::CANNetwork.add_any_control_function_parameter_group_number_callback(static_cast<std::uint32_t>(isobus::CANLibParameterGroupNumber::ECUIdentificationInformation), identification_pgn_handler, nullptr);
 	isobus::CANNetworkManager::CANNetwork.add_any_control_function_parameter_group_number_callback(static_cast<std::uint32_t>(isobus::CANLibParameterGroupNumber::ComponentIdentification), identification_pgn_handler, nullptr);
+	isobus::CANNetworkManager::CANNetwork.add_any_control_function_parameter_group_number_callback(static_cast<std::uint32_t>(isobus::CANLibParameterGroupNumber::ProductIdentification), identification_pgn_handler, nullptr);
+
+	isobus::CANNetworkManager::CANNetwork.add_any_control_function_parameter_group_number_callback(static_cast<std::uint32_t>(isobus::CANLibParameterGroupNumber::DiagnosticMessage1), diagnostic_message_pgn_handler, nullptr);
 
 	// Register callback to handle request for ECU Information
 	auto pgn_protocol = TestInternalECU->get_pgn_request_protocol().lock();
