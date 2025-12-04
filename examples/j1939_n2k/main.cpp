@@ -215,47 +215,52 @@ void process_and_print_dm1(const isobus::CANMessage& message) {
     std::cout << "║          MENSAGEM DM1 - DTCs ATIVOS                    ║\n";
     std::cout << "╚════════════════════════════════════════════════════════╝\n\n";
     
-    // Byte 0: Status das Lâmpadas
-    uint8_t lamp_status = data[0];
-    std::cout << "┌─ STATUS DAS LÂMPADAS ─────────────────────────────────┐\n";
-    std::cout << "│ Byte 0 (Lamp Status): 0x" << std::hex << std::setfill('0') 
-              << std::setw(2) << static_cast<int>(lamp_status) << std::dec << "\n";
-    
-    LampState protect = extract_lamp_state(lamp_status, 0);
-    LampState amber = extract_lamp_state(lamp_status, 1);
-    LampState red_stop = extract_lamp_state(lamp_status, 2);
-    LampState mil = extract_lamp_state(lamp_status, 3);
-    
-    std::cout << "│   Protect Lamp:        " << std::setw(15) << std::left 
-              << lamp_state_to_string(protect) << "│\n";
-    std::cout << "│   Amber Warning Lamp:  " << std::setw(15) << std::left 
-              << lamp_state_to_string(amber) << "│\n";
-    std::cout << "│   Red Stop Lamp:       " << std::setw(15) << std::left 
-              << lamp_state_to_string(red_stop) << "│\n";
-    std::cout << "│   MIL (Check Engine):  " << std::setw(15) << std::left 
-              << lamp_state_to_string(mil) << "│\n";
-    std::cout << "└───────────────────────────────────────────────────────┘\n\n";
-    
-    // Byte 1: Status de Flash
-    uint8_t flash_status = data[1];
-    std::cout << "┌─ STATUS DE FLASH ─────────────────────────────────────┐\n";
-    std::cout << "│ Byte 1 (Flash Status): 0x" << std::hex << std::setfill('0') 
-              << std::setw(2) << static_cast<int>(flash_status) << std::dec << "\n";
-    
-    FlashState protect_flash = extract_flash_state(flash_status, 0);
-    FlashState amber_flash = extract_flash_state(flash_status, 1);
-    FlashState red_flash = extract_flash_state(flash_status, 2);
-    FlashState mil_flash = extract_flash_state(flash_status, 3);
-    
-    std::cout << "│   Protect Lamp:        " << std::setw(15) << std::left 
-              << flash_state_to_string(protect_flash) << "│\n";
-    std::cout << "│   Amber Warning Lamp:  " << std::setw(15) << std::left 
-              << flash_state_to_string(amber_flash) << "│\n";
-    std::cout << "│   Red Stop Lamp:       " << std::setw(15) << std::left 
-              << flash_state_to_string(red_flash) << "│\n";
-    std::cout << "│   MIL (Check Engine):  " << std::setw(15) << std::left 
-              << flash_state_to_string(mil_flash) << "│\n";
-    std::cout << "└───────────────────────────────────────────────────────┘\n\n";
+    if ((data[0] == 0xFF) && (data[1] == 0xFF)) {
+		std::cout << "DM1 em modo ISOBUS\n\r";
+		std::cout << "\n\r";
+	}else{
+		// Byte 0: Status das Lâmpadas
+		uint8_t lamp_status = data[0];
+		std::cout << "┌─ STATUS DAS LÂMPADAS ─────────────────────────────────┐\n";
+		std::cout << "│ Byte 0 (Lamp Status): 0x" << std::hex << std::setfill('0') 
+				<< std::setw(2) << static_cast<int>(lamp_status) << std::dec << "\n";
+		
+		LampState protect = extract_lamp_state(lamp_status, 0);
+		LampState amber = extract_lamp_state(lamp_status, 1);
+		LampState red_stop = extract_lamp_state(lamp_status, 2);
+		LampState mil = extract_lamp_state(lamp_status, 3);
+		
+		std::cout << "│   Protect Lamp:        " << std::setw(15) << std::left 
+				<< lamp_state_to_string(protect) << "│\n";
+		std::cout << "│   Amber Warning Lamp:  " << std::setw(15) << std::left 
+				<< lamp_state_to_string(amber) << "│\n";
+		std::cout << "│   Red Stop Lamp:       " << std::setw(15) << std::left 
+				<< lamp_state_to_string(red_stop) << "│\n";
+		std::cout << "│   MIL (Check Engine):  " << std::setw(15) << std::left 
+				<< lamp_state_to_string(mil) << "│\n";
+		std::cout << "└───────────────────────────────────────────────────────┘\n\n";
+		
+		// Byte 1: Status de Flash
+		uint8_t flash_status = data[1];
+		std::cout << "┌─ STATUS DE FLASH ─────────────────────────────────────┐\n";
+		std::cout << "│ Byte 1 (Flash Status): 0x" << std::hex << std::setfill('0') 
+				<< std::setw(2) << static_cast<int>(flash_status) << std::dec << "\n";
+
+		FlashState protect_flash = extract_flash_state(flash_status, 0);
+		FlashState amber_flash = extract_flash_state(flash_status, 1);
+		FlashState red_flash = extract_flash_state(flash_status, 2);
+		FlashState mil_flash = extract_flash_state(flash_status, 3);
+		
+		std::cout << "│   Protect Lamp:        " << std::setw(15) << std::left 
+				<< flash_state_to_string(protect_flash) << "│\n";
+		std::cout << "│   Amber Warning Lamp:  " << std::setw(15) << std::left 
+				<< flash_state_to_string(amber_flash) << "│\n";
+		std::cout << "│   Red Stop Lamp:       " << std::setw(15) << std::left 
+				<< flash_state_to_string(red_flash) << "│\n";
+		std::cout << "│   MIL (Check Engine):  " << std::setw(15) << std::left 
+				<< flash_state_to_string(mil_flash) << "│\n";
+		std::cout << "└───────────────────────────────────────────────────────┘\n\n";
+	}
     
     // Calcular número de DTCs
     uint8_t dtc_count = (data.size() - 2) / 4;
@@ -280,24 +285,24 @@ void process_and_print_dm1(const isobus::CANMessage& message) {
 			J1939_DTC dtc = decode_dtc(&data[offset]);
 			
 			std::cout << "╔═══════════════════════════════════════════════════════╗\n";
-			std::cout << "║ DTC #" << static_cast<int>(i+1) << std::setw(48) << " " << "║\n";
+			std::cout << "║ DTC #" << static_cast<int>(i+1) << std::setfill(' ') << std::setw(48) << " " << "║\n";
 			std::cout << "╠═══════════════════════════════════════════════════════╣\n";
-			std::cout << "║ SPN (Suspect Parameter Number): " << std::setw(18) << std::left 
+			std::cout << "║ SPN (Suspect Parameter Number): " << std::setw(22) << std::left 
 					<< dtc.spn << "║\n";
-			std::cout << "║ FMI (Failure Mode Identifier):  " << std::setw(2) << static_cast<int>(dtc.fmi) 
+			std::cout << "║ FMI (Failure Mode Identifier):  " << std::setw(6) << static_cast<int>(dtc.fmi) 
 					<< std::setw(16) << " " << "║\n";
-			std::cout << "║   Description: " << std::setw(38) << std::left 
+			std::cout << "║   Description: " << std::setw(39) << std::left 
 					<< fmi_to_string(dtc.fmi) << "║\n";
-			std::cout << "║ OC (Occurrence Count):           " << std::setw(18) << static_cast<int>(dtc.oc) 
+			std::cout << "║ OC (Occurrence Count):           " << std::setw(21) << static_cast<int>(dtc.oc) 
 					<< "║\n";
-			std::cout << "║ CM (Conversion Method):          " << std::setw(18) << static_cast<int>(dtc.conversion) 
+			std::cout << "║ CM (Conversion Method):          " << std::setw(21) << static_cast<int>(dtc.conversion) 
 					<< "║\n";
 			std::cout << "║                                                       ║\n";
 			std::cout << "║ Raw bytes: " << std::hex << std::setfill('0');
 			for (int j = 0; j < 4; j++) {
 				std::cout << "0x" << std::setw(2) << static_cast<int>(data[offset + j]) << " ";
 			}
-			std::cout << std::dec << std::setw(14) << " " << "║\n";
+			std::cout << std::dec << std::setfill(' ') << std::setw(23) << " " << "║\n";
 			std::cout << "╚═══════════════════════════════════════════════════════╝\n\n";
 		}
 	}else{
@@ -590,7 +595,7 @@ int main()
 	isobus::DiagnosticProtocol diagnosticProtocol(TestInternalECU);
 	//isobus::DiagnosticProtocol diagnosticProtocol(TestInternalECU, (isobus::DiagnosticProtocol::TransmitFlags::ProductIdentification | isobus::DiagnosticProtocol::TransmitFlags::ECUIdentification | isobus::DiagnosticProtocol::TransmitFlags::SoftwareIdentification));
 	diagnosticProtocol.initialize();
-	diagnosticProtocol.set_j1939_mode(true); // Ativa o modo J1939 (desativa OBD2 específico para veículos leves)
+	//diagnosticProtocol.set_j1939_mode(true); // Ativa o modo J1939 (desativa OBD2 específico para veículos leves)
 
 	// Set a product identification string (in case someone requests it)
 	diagnosticProtocol.set_product_identification_code("1234567890ABC");
@@ -661,22 +666,21 @@ int main()
 	auto sequenceIdentifier = 1;
 
 	// Enable and configure the messages we want to send
-	n2kInterface.set_enable_sending_cog_sog_cyclically(true);
 	auto &cog_sog_message = n2kInterface.get_cog_sog_transmit_message();
 	cog_sog_message.set_sequence_id(sequenceIdentifier);
 	cog_sog_message.set_course_over_ground_reference(isobus::NMEA2000Messages::CourseOverGroundSpeedOverGroundRapidUpdate::CourseOverGroundReference::Error);
 	cog_sog_message.set_course_over_ground(43633); // 4.3633 radians = 250 degrees
 	cog_sog_message.set_speed_over_ground(200); // 2 m/s = 7.2 km/h
+	n2kInterface.set_enable_sending_cog_sog_cyclically(true);
 
-	n2kInterface.set_enable_sending_datum_cyclically(true);
 	auto &datum_message = n2kInterface.get_datum_transmit_message();
 	datum_message.set_local_datum("W84");
 	datum_message.set_delta_latitude(1234000); // 0.1234 degrees
 	datum_message.set_delta_longitude(5678000); // 0.5678 degrees
 	datum_message.set_delta_altitude(98); // 0.98 meters
 	datum_message.set_reference_datum("WGS84");
+	n2kInterface.set_enable_sending_datum_cyclically(true);
 
-	n2kInterface.set_enable_sending_gnss_position_data_cyclically(true);
 	auto &position_data_message = n2kInterface.get_gnss_position_data_transmit_message();
 	position_data_message.set_sequence_id(sequenceIdentifier);
 	auto daysSinceEpoch = std::chrono::duration_cast<std::chrono::hours>(std::chrono::system_clock::now().time_since_epoch()).count() / 24;
@@ -702,22 +706,23 @@ int main()
 		                                            i * 150 // Arbitrary age of correction (1.5s * i)
 		);
 	}
+	n2kInterface.set_enable_sending_gnss_position_data_cyclically(true);
 
-	n2kInterface.set_enable_sending_position_rapid_update_cyclically(true);
 	n2kInterface.get_position_rapid_update_transmit_message().set_latitude(static_cast<int32_t>(51.69917 / 1E-07)); // 51.69917 degrees
 	n2kInterface.get_position_rapid_update_transmit_message().set_longitude(static_cast<int32_t>(5.30417 / 1E-07)); // 5.30417 degrees
+	n2kInterface.set_enable_sending_position_rapid_update_cyclically(true);
 
-	n2kInterface.set_enable_sending_rate_of_turn_cyclically(true);
 	n2kInterface.get_rate_of_turn_transmit_message().set_sequence_id(sequenceIdentifier);
 	n2kInterface.get_rate_of_turn_transmit_message().set_rate_of_turn(static_cast<int32_t>(-1.234 / 3.125E-08)); // -1.234 radians/s = -70.7 degrees/s
+	n2kInterface.set_enable_sending_rate_of_turn_cyclically(true);
 
-	n2kInterface.set_enable_sending_vessel_heading_cyclically(true);
 	auto &vessel_heading_message = n2kInterface.get_vessel_heading_transmit_message();
 	vessel_heading_message.set_sequence_id(sequenceIdentifier);
 	vessel_heading_message.set_heading(43633); // 4.3633 radians = 250 degrees
 	vessel_heading_message.set_magnetic_deviation(-4363); // -0.4363 radians = -25 degrees
 	vessel_heading_message.set_magnetic_variation(-5236); // -0.5236 radians = -30 degrees
 	vessel_heading_message.set_sensor_reference(isobus::NMEA2000Messages::VesselHeading::HeadingSensorReference::Error);
+	n2kInterface.set_enable_sending_vessel_heading_cyclically(true);
 
 	// Listen to incoming NMEA2K messages
 	n2kInterface.get_course_speed_over_ground_rapid_update_event_publisher().add_listener(on_cog_sog_update);
