@@ -33,6 +33,10 @@
 #include <condition_variable>
 #include <optional>
 
+#include "n2k_callbacks.hpp"
+#include "j1939_callbaks.hpp"
+#include "diagnostic_callbacks.hpp"
+
 #define PI 3.141592653589793238463
 
 
@@ -65,474 +69,6 @@ public:
     }
 };
 
-void bam_software_information_callback(const isobus::CANMessage &message, void *)
-{
-	auto source = message.get_source_control_function();
-	auto identifier = message.get_identifier();
-	auto pgn = identifier.get_parameter_group_number();
-	std::cout << std::endl << "[BAM] Received PGN " << static_cast<int>(pgn) << " from " << static_cast<int>(source->get_address()) << std::endl;
-  	std::cout << "Data lenght: " << message.get_data_length() << std::endl;
-	auto data_vec = message.get_data();
-	for (const auto& element : data_vec) {
-        std::cout << element;
-    }
-	std::cout << std::endl << std::endl;
-}
-
-void identification_pgn_handler(const isobus::CANMessage &message, void *){
-	auto source = message.get_source_control_function();
-	auto identifier = message.get_identifier();
-	auto pgn = identifier.get_parameter_group_number();
-	if (message.is_broadcast()) {
-		// endereço de broadcast
-		std::cout << std::endl << "[BAM] Received PGN " << static_cast<int>(pgn) << " from " << static_cast<int>(source->get_address()) << std::endl;
-	}else{
-		// endereço específico
-		std::cout << std::endl << "[CMTP] Received PGN " << static_cast<int>(pgn) << " from " << static_cast<int>(source->get_address()) << std::endl;
-	}
-  	std::cout << "Data lenght: " << message.get_data_length() << std::endl;
-	auto data_vec = message.get_data();
-	for (const auto& element : data_vec) {
-        std::cout << element;
-    }
-	std::cout << std::endl << std::endl;
-}
-
-
-// Estrutura para DTC
-struct J1939_DTC {
-    uint32_t spn;
-    uint8_t fmi;
-    uint8_t oc;
-    uint8_t conversion;
-};
-
-// Estados de lâmpada
-enum class LampState {
-    OFF = 0,
-    ON = 1,
-    ERROR = 2,
-    NOT_AVAILABLE = 3
-};
-
-// Estados de flash
-enum class FlashState {
-    SOLID = 0,
-    SLOW = 1,
-    FAST = 2,
-    RESERVED = 3
-};
-
-// Converte estado de lâmpada para string
-const char* lamp_state_to_string(LampState state) {
-    switch(state) {
-        case LampState::OFF: return "OFF";
-        case LampState::ON: return "ON";
-        case LampState::ERROR: return "ERROR";
-        case LampState::NOT_AVAILABLE: return "N/A";
-        default: return "UNKNOWN";
-    }
-}
-
-// Converte estado de flash para string
-const char* flash_state_to_string(FlashState state) {
-    switch(state) {
-        case FlashState::SOLID: return "SOLID";
-        case FlashState::SLOW: return "SLOW FLASH";
-        case FlashState::FAST: return "FAST FLASH";
-        case FlashState::RESERVED: return "RESERVED";
-        default: return "UNKNOWN";
-    }
-}
-
-// Converte FMI para string descritiva
-const char* fmi_to_string(uint8_t fmi) {
-    switch(fmi) {
-        case 0: return "Data Valid Above Normal";
-        case 1: return "Data Valid Below Normal";
-        case 2: return "Data Erratic";
-        case 3: return "Voltage Above Normal";
-        case 4: return "Voltage Below Normal";
-        case 5: return "Current Below Normal";
-        case 6: return "Current Above Normal";
-        case 7: return "Mechanical System Not Responding";
-        case 8: return "Abnormal Frequency";
-        case 9: return "Abnormal Update Rate";
-        case 10: return "Abnormal Rate of Change";
-        case 11: return "Root Cause Not Known";
-        case 12: return "Bad Intelligent Device";
-        case 13: return "Out of Calibration";
-        case 14: return "Special Instructions";
-        case 31: return "Condition Exists";
-        default: return "Reserved/Unknown";
-    }
-}
-
-// Extrai estado de lâmpada de um byte (2 bits por lâmpada)
-LampState extract_lamp_state(uint8_t byte, uint8_t lamp_position) {
-    uint8_t shift = lamp_position * 2;
-    return static_cast<LampState>((byte >> shift) & 0x03);
-}
-
-// Extrai estado de flash de um byte (2 bits por lâmpada)
-FlashState extract_flash_state(uint8_t byte, uint8_t lamp_position) {
-    uint8_t shift = lamp_position * 2;
-    return static_cast<FlashState>((byte >> shift) & 0x03);
-}
-
-// Decodifica um DTC de 4 bytes
-J1939_DTC decode_dtc(const uint8_t* buffer) {
-    J1939_DTC dtc;
-    
-    // SPN: 19 bits (bytes 0-2)
-    dtc.spn = static_cast<uint32_t>(buffer[0]) |
-              (static_cast<uint32_t>(buffer[1]) << 8) |
-              ((static_cast<uint32_t>(buffer[2] >> 5) & 0x07) << 16);
-    
-    // FMI: 5 bits (byte 2, bits 3-7)
-    dtc.fmi = buffer[2] & 0x1F;
-
-    // OC: 7 bits (byte 3, bits 0-6)
-    dtc.oc = buffer[3] & 0x7F;
-    
-    // Conversion Method: 1 bit (byte 3, bit 7)
-    dtc.conversion = (buffer[3] >> 7) & 0x01;
-    
-    return dtc;
-}
-
-// Função principal para processar e imprimir mensagem DM1
-void process_and_print_dm1(const isobus::CANMessage& message) {
-    std::vector<uint8_t> data = message.get_data();
-    
-    // Verifica se tem pelo menos os 2 bytes de cabeçalho
-    if (data.size() < 2) {
-        std::cout << "Erro: Mensagem DM1 muito curta\n";
-        return;
-    }
-    
-    std::cout << "\n╔════════════════════════════════════════════════════════╗\n";
-    std::cout << "║          MENSAGEM DM1 - DTCs ATIVOS                    ║\n";
-    std::cout << "╚════════════════════════════════════════════════════════╝\n\n";
-    
-    if ((data[0] == 0xFF) && (data[1] == 0xFF)) {
-		std::cout << "DM1 em modo ISOBUS\n\r";
-		std::cout << "\n\r";
-	}else{
-		// Byte 0: Status das Lâmpadas
-		uint8_t lamp_status = data[0];
-		std::cout << "┌─ STATUS DAS LÂMPADAS ─────────────────────────────────┐\n";
-		std::cout << "│ Byte 0 (Lamp Status): 0x" << std::hex << std::setfill('0') 
-				<< std::setw(2) << static_cast<int>(lamp_status) << std::dec << "\n";
-		
-		LampState protect = extract_lamp_state(lamp_status, 0);
-		LampState amber = extract_lamp_state(lamp_status, 1);
-		LampState red_stop = extract_lamp_state(lamp_status, 2);
-		LampState mil = extract_lamp_state(lamp_status, 3);
-		
-		std::cout << "│   Protect Lamp:        " << std::setw(15) << std::left 
-				<< lamp_state_to_string(protect) << "│\n";
-		std::cout << "│   Amber Warning Lamp:  " << std::setw(15) << std::left 
-				<< lamp_state_to_string(amber) << "│\n";
-		std::cout << "│   Red Stop Lamp:       " << std::setw(15) << std::left 
-				<< lamp_state_to_string(red_stop) << "│\n";
-		std::cout << "│   MIL (Check Engine):  " << std::setw(15) << std::left 
-				<< lamp_state_to_string(mil) << "│\n";
-		std::cout << "└───────────────────────────────────────────────────────┘\n\n";
-		
-		// Byte 1: Status de Flash
-		uint8_t flash_status = data[1];
-		std::cout << "┌─ STATUS DE FLASH ─────────────────────────────────────┐\n";
-		std::cout << "│ Byte 1 (Flash Status): 0x" << std::hex << std::setfill('0') 
-				<< std::setw(2) << static_cast<int>(flash_status) << std::dec << "\n";
-
-		FlashState protect_flash = extract_flash_state(flash_status, 0);
-		FlashState amber_flash = extract_flash_state(flash_status, 1);
-		FlashState red_flash = extract_flash_state(flash_status, 2);
-		FlashState mil_flash = extract_flash_state(flash_status, 3);
-		
-		std::cout << "│   Protect Lamp:        " << std::setw(15) << std::left 
-				<< flash_state_to_string(protect_flash) << "│\n";
-		std::cout << "│   Amber Warning Lamp:  " << std::setw(15) << std::left 
-				<< flash_state_to_string(amber_flash) << "│\n";
-		std::cout << "│   Red Stop Lamp:       " << std::setw(15) << std::left 
-				<< flash_state_to_string(red_flash) << "│\n";
-		std::cout << "│   MIL (Check Engine):  " << std::setw(15) << std::left 
-				<< flash_state_to_string(mil_flash) << "│\n";
-		std::cout << "└───────────────────────────────────────────────────────┘\n\n";
-	}
-    
-    // Calcular número de DTCs
-    uint8_t dtc_count = (data.size() - 2) / 4;
-	if ((data[2] == 0) && (data[3] == 0) && (data[4] == 0) && (data[5] == 0)){
-    	dtc_count = 0;
-    }
-
-	if (dtc_count){    
-		std::cout << "┌─ DIAGNOSTIC TROUBLE CODES (DTCs) ─────────────────────┐\n";
-		std::cout << "│ Total de DTCs Ativos: " << static_cast<int>(dtc_count) << "\n";
-		std::cout << "└───────────────────────────────────────────────────────┘\n\n";
-		
-		// Processar cada DTC
-		for (uint8_t i = 0; i < dtc_count; i++) {
-			size_t offset = 2 + (i * 4);
-			
-			if (offset + 4 > data.size()) {
-				std::cout << "Erro: DTC " << static_cast<int>(i+1) << " incompleto\n";
-				break;
-			}
-			
-			J1939_DTC dtc = decode_dtc(&data[offset]);
-			
-			std::cout << "╔═══════════════════════════════════════════════════════╗\n";
-			std::cout << "║ DTC #" << static_cast<int>(i+1) << std::setfill(' ') << std::setw(48) << " " << "║\n";
-			std::cout << "╠═══════════════════════════════════════════════════════╣\n";
-			std::cout << "║ SPN (Suspect Parameter Number): " << std::setw(22) << std::left 
-					<< dtc.spn << "║\n";
-			std::cout << "║ FMI (Failure Mode Identifier):  " << std::setw(6) << static_cast<int>(dtc.fmi) 
-					<< std::setw(16) << " " << "║\n";
-			std::cout << "║   Description: " << std::setw(39) << std::left 
-					<< fmi_to_string(dtc.fmi) << "║\n";
-			std::cout << "║ OC (Occurrence Count):           " << std::setw(21) << static_cast<int>(dtc.oc) 
-					<< "║\n";
-			std::cout << "║ CM (Conversion Method):          " << std::setw(21) << static_cast<int>(dtc.conversion) 
-					<< "║\n";
-			std::cout << "║                                                       ║\n";
-			std::cout << "║ Raw bytes: " << std::hex << std::setfill('0');
-			for (int j = 0; j < 4; j++) {
-				std::cout << "0x" << std::setw(2) << static_cast<int>(data[offset + j]) << " ";
-			}
-			std::cout << std::dec << std::setfill(' ') << std::setw(23) << " " << "║\n";
-			std::cout << "╚═══════════════════════════════════════════════════════╝\n\n";
-		}
-	}else{
-		std::cout << static_cast<int>(dtc_count) << " DTCs ativos!" << "\n\r";
-	}
-}
-
-void diagnostic_message_pgn_handler(const isobus::CANMessage &message, void *){
-	auto source = message.get_source_control_function();
-	auto identifier = message.get_identifier();
-	auto pgn = identifier.get_parameter_group_number();
-	if (message.is_broadcast()) {
-		// endereço de broadcast
-		std::cout << std::endl << "[BAM] Received Diagnostic PGN " << static_cast<int>(pgn) << " from " << static_cast<int>(source->get_address()) << std::endl;
-	}else{
-		// endereço específico
-		std::cout << std::endl << "[CMTP] Received Diagnostic PGN " << static_cast<int>(pgn) << " from " << static_cast<int>(source->get_address()) << std::endl;
-	}
-  	std::cout << "Data lenght: " << message.get_data_length() << std::endl;
-	process_and_print_dm1(message);
-	/*
-	auto data_vec = message.get_data();
-	std::cout << "Status das Lâmpadas: " << static_cast<int>(data_vec[0]) << "\n\r";
-	std::cout << "Flash das Lâmpadas: " << static_cast<int>(data_vec[1]) << "\n\r";
-	uint8_t dtc_count = (message.get_data_length() - 2) / 4;
-	if ((data_vec[2] == 0) && (data_vec[3] == 0) && (data_vec[4] == 0) && (data_vec[5] == 0)){
-    	dtc_count = 0;
-    }
-	std::cout << static_cast<int>(dtc_count) << " DTCs ativos!" << "\n\r";
-	*/
-
-	std::cout << std::endl << std::endl;
-}
-
-bool software_information_pgn_request_handler(std::uint32_t parameterGroupNumber,
-                                               std::shared_ptr<isobus::ControlFunction>,
-                                               bool &acknowledge,
-                                               isobus::AcknowledgementType &acknowledgeType,
-                                               void *)
-{
-	bool retVal;
-
-	// This function will be called whenever PGN EF00 is requested.
-	// Add whatever logic you want execute to on reciept of a PROPA request.
-	// One normal thing to do would be to send a CAN message with that PGN.
-	std::cout << "Received PGN:" << parameterGroupNumber << std::endl;
-
-	// In this example though, we'll simply acknowledge the request.
-	if (static_cast<std::uint32_t>(isobus::CANLibParameterGroupNumber::SoftwareIdentification) == parameterGroupNumber)
-	{
-		acknowledge = true;
-		acknowledgeType = isobus::AcknowledgementType::Positive;
-		retVal = true;
-	}
-	else
-	{
-		// If any other PGN is requested, since this callback doesn't handle it, return false.
-		// Returning false will tell the stack to keep looking for another callback (if any exist) to handle this PGN
-		retVal = false;
-	}
-	return retVal;
-}
-
-void on_cog_sog_update(const std::shared_ptr<isobus::NMEA2000Messages::CourseOverGroundSpeedOverGroundRapidUpdate> message, bool changed)
-{
-	std::cout << "COG/SOG update: (updated=" << changed << ")" << std::endl;
-	std::cout << "  SID: " << static_cast<int>(message->get_sequence_id()) << std::endl;
-	std::cout << "  COG reference: " << static_cast<int>(message->get_course_over_ground_reference()) << std::endl;
-	std::cout << "  COG: " << message->get_course_over_ground() / (PI / 180) << " degrees" << std::endl;
-	std::cout << "  SOG: " << message->get_speed_over_ground() * 3.6 << " km/h" << std::endl;
-}
-
-void on_datum_update(const std::shared_ptr<isobus::NMEA2000Messages::Datum> message, bool changed)
-{
-	std::cout << "Datum update: (updated=" << changed << ")" << std::endl;
-	std::cout << "  Local datum: " << message->get_local_datum() << std::endl;
-	std::cout << "  Delta latitude: " << message->get_delta_latitude() << " degrees" << std::endl;
-	std::cout << "  Delta longitude: " << message->get_delta_longitude() << " degrees" << std::endl;
-	std::cout << "  Delta altitude: " << message->get_delta_altitude() << " m" << std::endl;
-	std::cout << "  Reference datum: " << message->get_reference_datum() << std::endl;
-}
-
-void on_position_update(const std::shared_ptr<isobus::NMEA2000Messages::GNSSPositionData> message, bool changed)
-{
-	const auto daysSinceEpoch = std::chrono::duration_cast<std::chrono::hours>(std::chrono::system_clock::now().time_since_epoch()).count() / 24;
-	const auto secondsSinceMidnight = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count() % (24 * 60 * 60);
-
-	std::cout << "Position update: (updated=" << changed << ")" << std::endl;
-	std::cout << "  SID: " << static_cast<int>(message->get_sequence_id()) << std::endl;
-
-	std::cout << "  Date: " << static_cast<int>(message->get_position_date()) << " days since epoch"
-	          << " (today is " << static_cast<int>(daysSinceEpoch) << ")" << std::endl;
-	std::cout << "  Time: " << static_cast<int>(message->get_position_time()) << " seconds since midnight"
-	          << " (now is " << static_cast<int>(secondsSinceMidnight) << ")" << std::endl;
-	std::cout << "  Latitude: " << message->get_latitude() << " degrees" << std::endl;
-	std::cout << "  Longitude: " << message->get_longitude() << " degrees" << std::endl;
-	std::cout << "  Altitude: " << message->get_altitude() << " m" << std::endl;
-	std::cout << "  GNSS type: " << static_cast<int>(message->get_gnss_method()) << std::endl;
-	std::cout << "  Method: " << static_cast<int>(message->get_gnss_method()) << std::endl;
-	std::cout << "  Number of satellites: " << static_cast<int>(message->get_number_of_space_vehicles()) << std::endl;
-	std::cout << "  HDOP: " << message->get_horizontal_dilution_of_precision() << std::endl;
-	std::cout << "  PDOP: " << message->get_positional_dilution_of_precision() << std::endl;
-	std::cout << "  Geoidal separation: " << message->get_geoidal_separation() << " m" << std::endl;
-	std::cout << "  Number of reference stations: " << static_cast<int>(message->get_number_of_reference_stations()) << std::endl;
-	for (uint8_t i = 0; i < message->get_number_of_reference_stations(); i++)
-	{
-		std::cout << "    Reference station " << static_cast<int>(i) << ":" << std::endl;
-		std::cout << "      Station ID: " << static_cast<int>(message->get_reference_station_id(i)) << std::endl;
-		std::cout << "      Type of system: " << static_cast<int>(message->get_reference_station_system_type(i)) << std::endl;
-		std::cout << "      Age of correction: " << message->get_reference_station_corrections_age(i) << " sec" << std::endl;
-	}
-}
-
-void on_position_rapid_update(const std::shared_ptr<isobus::NMEA2000Messages::PositionRapidUpdate> message, bool changed)
-{
-	std::cout << "Position rapid update: (updated=" << changed << ")" << std::endl;
-	std::cout << "  Latitude: " << message->get_latitude() << " degrees" << std::endl;
-	std::cout << "  Longitude: " << message->get_longitude() << " degrees" << std::endl;
-}
-
-void on_turn_rate_update(const std::shared_ptr<isobus::NMEA2000Messages::RateOfTurn> message, bool changed)
-{
-	std::cout << "Rate of turn update: (updated=" << changed << ")" << std::endl;
-	std::cout << "  SID: " << static_cast<int>(message->get_sequence_id()) << std::endl;
-	std::cout << "  Rate of turn: " << message->get_rate_of_turn() / (PI / 180) << " degrees/s" << std::endl;
-}
-
-void on_vessel_heading_update(const std::shared_ptr<isobus::NMEA2000Messages::VesselHeading> message, bool changed)
-{
-	std::cout << "Vessel heading update: (updated=" << changed << ")" << std::endl;
-	std::cout << "  SID: " << static_cast<int>(message->get_sequence_id()) << std::endl;
-	std::cout << "  Heading: " << message->get_heading() / (PI / 180) << " degrees" << std::endl;
-	std::cout << "  Magnetic deviation: " << message->get_magnetic_deviation() / (PI / 180) << " degrees" << std::endl;
-	std::cout << "  Magnetic variation: " << message->get_magnetic_variation() / (PI / 180) << " degrees" << std::endl;
-	std::cout << "  Sensor reference: " << static_cast<int>(message->get_sensor_reference()) << std::endl;
-}
-
-std::shared_ptr<isobus::PartneredControlFunction> findECUByAddress(int address) {
-	auto controlFunctions = isobus::CANNetworkManager::CANNetwork.get_control_functions(true);
-	for (auto& cf: controlFunctions){
-		std::cout << "ECU Address: " << static_cast<int>(cf->get_address()) << std::endl;
-        if (static_cast<int>(cf->get_address()) == address) {
-            return std::static_pointer_cast<isobus::PartneredControlFunction>(cf);
-        }
-	}
-    
-    return nullptr; // ECU não encontrado na rede
-}
-
-
-// Função para construir mensagem Component Information
-std::vector<uint8_t> build_component_information_message() {
-    std::vector<uint8_t> message;
-    
-    // Make
-    std::string make = "20254";
-    message.insert(message.end(), make.begin(), make.end());
-    message.push_back('*'); // Delimiter
-    
-    // Model Name
-    std::string model = "2025-PPT";
-    message.insert(message.end(), model.begin(), model.end());
-    message.push_back('*'); // Delimiter
-    
-    // Serial Number
-    std::string serial = "1243-13245-1245";
-    message.insert(message.end(), serial.begin(), serial.end());
-    message.push_back('*'); // Delimiter
-    
-    // Unit Number
-    std::string unit_number = "Unit 8K";
-    message.insert(message.end(), unit_number.begin(), unit_number.end());
-    message.push_back('*'); // Delimiter
-    
-    return message;
-}
-
-
-// Função auxiliar para enviar resposta multipacket
-bool send_multipacket_response(
-	std::uint32_t pgn,
-	const std::vector<uint8_t>& data,
-	std::shared_ptr<isobus::ControlFunction> destination
-) {
-	// Usar transport protocol para enviar dados
-	auto allInternalCFs = isobus::CANNetworkManager::CANNetwork.get_internal_control_functions();
-	std::shared_ptr<isobus::InternalControlFunction> internalECU;
-	for (auto& cf: allInternalCFs){
-		if (cf->get_address() == 128){
-			internalECU = cf;
-			break;
-		}
-	}
-	std::cout << "Src addr: " << static_cast<int>(internalECU->get_address());
-	if (destination != nullptr){
-		std::cout << " - Dst addr: " << static_cast<int>(destination->get_address()) << std::endl;
-		return isobus::CANNetworkManager::CANNetwork.send_can_message(
-			pgn,
-			data.data(),
-			data.size(),
-			internalECU,
-			destination,
-			isobus::CANIdentifier::CANPriority::PriorityDefault6
-		);
-	}else{
-		std::cout << std::endl;
-		return false;
-	}
-}
-
-
-// Implementação do ECU Information
-bool handle_component_information_request(
-								std::uint32_t parameterGroupNumber,
-								std::shared_ptr<isobus::ControlFunction> requestingControlFunction,
-								bool &acknowledge,
-								isobus::AcknowledgementType &acknowledgeType,
-								void *)
-{
-	std::cout << "[PGN Request] - Component Information pgn:" << parameterGroupNumber << std::endl;
-	
-	std::vector<uint8_t> ecuData = build_component_information_message();
-	//std::cout << "Message size: " << ecuData.size() << std::endl;
-	bool success = send_multipacket_response(parameterGroupNumber, ecuData, requestingControlFunction);
-	
-	acknowledge = true;
-	acknowledgeType = success ? isobus::AcknowledgementType::Positive : isobus::AcknowledgementType::Negative;
-	
-	return success;
-}
 
 
 int main()
@@ -637,6 +173,7 @@ int main()
 	*/
 
 	// Set the DTCs active. This should put them in the DM1 message
+	/*
 	diagnosticProtocol.set_diagnostic_trouble_code_active(testDTC1, true);
 	diagnosticProtocol.set_diagnostic_trouble_code_active(testDTC2, true);
 	diagnosticProtocol.set_diagnostic_trouble_code_active(testDTC3, true);
@@ -652,9 +189,10 @@ int main()
 	std::cout << "Diagnostic Trouble Codes set inactive. (DM2)" << std::endl;
 	std::this_thread::sleep_for(std::chrono::milliseconds(5000)); // Send the DM2 for a while
 
-	//diagnosticProtocol.clear_inactive_diagnostic_trouble_codes(); // All messages should now be clear!
-	//std::cout << "Diagnostic Trouble Codes cleared." << std::endl;
-	//std::this_thread::sleep_for(std::chrono::milliseconds(5000)); // Wait a bit before proceeding
+	diagnosticProtocol.clear_inactive_diagnostic_trouble_codes(); // All messages should now be clear!
+	std::cout << "Diagnostic Trouble Codes cleared." << std::endl;
+	std::this_thread::sleep_for(std::chrono::milliseconds(5000)); // Wait a bit before proceeding
+	*/
 
 	// Construct NMEA2K interface, defaulting to all messages disabled
 	isobus::NMEA2000MessageInterface n2kInterface(TestInternalECU, false, false, false, false, false, false, false);
@@ -724,13 +262,61 @@ int main()
 	vessel_heading_message.set_sensor_reference(isobus::NMEA2000Messages::VesselHeading::HeadingSensorReference::Error);
 	n2kInterface.set_enable_sending_vessel_heading_cyclically(true);
 
+	/*
+	// PGN 126992 - System Time
+    auto &system_time_message = n2kInterface.get_system_time_transmit_message();
+    system_time_message.set_sequence_id(sequenceIdentifier);
+    system_time_message.set_source(isobus::NMEA2000Messages::SystemTime::SystemTimeSource::GPS);
+    
+    time_t now = time(nullptr);
+    system_time_message.set_system_date(static_cast<uint16_t>(now / 86400));
+    system_time_message.set_system_time(static_cast<uint32_t>((now % 86400) * 10000));
+    
+    n2kInterface.set_enable_sending_system_time_cyclically(true);
+    std::cout << "✓ System Time configurado (1 Hz)\n";
+    
+    // PGN 126993 - Heartbeat
+    auto &heartbeat_message = n2kInterface.get_heartbeat_transmit_message();
+    heartbeat_message.set_data_transmit_offset(0xFFFF); // Do not change
+    heartbeat_message.set_sequence_counter(0);
+    
+    n2kInterface.set_enable_sending_heartbeat_cyclically(true);
+    std::cout << "✓ Heartbeat configurado (60 Hz)\n";
+
+	// PGN 127257 - Attitude
+    auto &attitude_message = n2kInterface.get_attitude_transmit_message();
+    attitude_message.set_sequence_id(sequenceIdentifier);
+    attitude_message.set_yaw(static_cast<int16_t>((10.0 * M_PI / 180.0) / 0.0001));   // 10°
+    attitude_message.set_pitch(static_cast<int16_t>((5.0 * M_PI / 180.0) / 0.0001));  // 5°
+    attitude_message.set_roll(static_cast<int16_t>((-2.0 * M_PI / 180.0) / 0.0001));  // -2°
+    
+    n2kInterface.set_enable_sending_attitude_cyclically(true);
+    std::cout << "✓ Attitude configurado (1 Hz) - Yaw:10° Pitch:5° Roll:-2°\n";
+    
+    // PGN 129539 - GNSS DOPs
+    auto &gnss_dops_message = n2kInterface.get_gnss_dilution_of_precision_transmit_message();
+    gnss_dops_message.set_sequence_id(sequenceIdentifier);
+    gnss_dops_message.set_desired_mode(isobus::NMEA2000Messages::GNSSDilutionOfPrecision::GNSSDOPMode::ThreeDimensional);
+    gnss_dops_message.set_actual_mode(isobus::NMEA2000Messages::GNSSDilutionOfPrecision::GNSSDOPMode::ThreeDimensional);
+    gnss_dops_message.set_horizontal_dilution_of_precision(static_cast<uint16_t>(1.2 / 0.01));  // 1.2
+    gnss_dops_message.set_vertical_dilution_of_precision(static_cast<uint16_t>(1.8 / 0.01));    // 1.8
+    gnss_dops_message.set_time_dilution_of_precision(static_cast<uint16_t>(0.9 / 0.01));        // 0.9
+
+    n2kInterface.set_enable_sending_gnss_dilution_of_precision_cyclically(true);
+    std::cout << "✓ GNSS DOPs configurado (1 Hz) - HDOP:1.2 VDOP:1.8 TDOP:0.9\n";
+	*/
+
 	// Listen to incoming NMEA2K messages
+	//n2kInterface.get_system_time_event_dispatcher().add_listener(on_system_time_received);
+    //n2kInterface.get_heartbeat_event_dispatcher().add_listener(on_heartbeat_received);
 	n2kInterface.get_course_speed_over_ground_rapid_update_event_publisher().add_listener(on_cog_sog_update);
 	n2kInterface.get_datum_event_publisher().add_listener(on_datum_update);
 	n2kInterface.get_gnss_position_data_event_publisher().add_listener(on_position_update);
 	n2kInterface.get_position_rapid_update_event_publisher().add_listener(on_position_rapid_update);
 	n2kInterface.get_rate_of_turn_event_publisher().add_listener(on_turn_rate_update);
 	n2kInterface.get_vessel_heading_event_publisher().add_listener(on_vessel_heading_update);
+	//n2kInterface.get_attitude_event_dispatcher().add_listener(on_attitude_received);
+    //n2kInterface.get_gnss_dilution_of_precision_event_dispatcher().add_listener(on_gnss_dops_received);
 
 	isobus::CANNetworkManager::CANNetwork.add_global_parameter_group_number_callback(static_cast<std::uint32_t>(isobus::CANLibParameterGroupNumber::SoftwareIdentification), bam_software_information_callback, nullptr);
 	
@@ -808,6 +394,21 @@ int main()
 					case 2:
 						isobus::ParameterGroupNumberRequestProtocol::request_parameter_group_number(static_cast<std::uint32_t>(isobus::CANLibParameterGroupNumber::ComponentIdentification), TestInternalECU, targetECU);
 						break;
+					case 3:
+						// Set the DTCs active. This should put them in the DM1 message
+						diagnosticProtocol.set_diagnostic_trouble_code_active(testDTC1, true);
+						diagnosticProtocol.set_diagnostic_trouble_code_active(testDTC2, true);
+						diagnosticProtocol.set_diagnostic_trouble_code_active(testDTC3, true);
+						break;
+					case 4:
+						// 4 seconds with DTCs active
+						break;
+					case 5:
+						// Set the DTCs inactive. This should put them in the DM2 message
+						diagnosticProtocol.set_diagnostic_trouble_code_active(testDTC1, false);
+						diagnosticProtocol.set_diagnostic_trouble_code_active(testDTC2, false);
+						diagnosticProtocol.set_diagnostic_trouble_code_active(testDTC3, false);
+						break;
 					/*
 					case 3:
 						// Alternatively, you could also just send the message yourself like this:
@@ -826,7 +427,7 @@ int main()
 				}
 			}
 			state++;
-			if (state > 2){
+			if (state > 5){
 				state = 0;
 			}
 			
