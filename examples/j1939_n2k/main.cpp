@@ -384,6 +384,9 @@ int main()
 			if (targetECU) {
 				switch (state){
 					case 0:
+					    std::cout << "\n╔════════════════════════════════════════════════════════╗\n";
+						std::cout << "║          Iniciando o ciclo de teste !                  ║\n";
+						std::cout << "╚════════════════════════════════════════════════════════╝\n\n";
 						// This is how you would request a PGN from someone else. In this example, we request it from ECU with address 129.
 						// Generally you'd want to replace nullptr with your partner control function as its a little nicer than just asking everyone on the bus for a PGN
 						isobus::ParameterGroupNumberRequestProtocol::request_parameter_group_number(static_cast<std::uint32_t>(isobus::CANLibParameterGroupNumber::SoftwareIdentification), TestInternalECU, targetECU);
@@ -395,22 +398,27 @@ int main()
 						isobus::ParameterGroupNumberRequestProtocol::request_parameter_group_number(static_cast<std::uint32_t>(isobus::CANLibParameterGroupNumber::ComponentIdentification), TestInternalECU, targetECU);
 						break;
 					case 3:
+						isobus::ParameterGroupNumberRequestProtocol::request_parameter_group_number(static_cast<std::uint32_t>(isobus::CANLibParameterGroupNumber::ProductIdentification), TestInternalECU, targetECU);
+						break;
+					case 4:
 						// Set the DTCs active. This should put them in the DM1 message
 						diagnosticProtocol.set_diagnostic_trouble_code_active(testDTC1, true);
 						diagnosticProtocol.set_diagnostic_trouble_code_active(testDTC2, true);
 						diagnosticProtocol.set_diagnostic_trouble_code_active(testDTC3, true);
 						break;
-					case 4:
-						// 4 seconds with DTCs active
-						break;
 					case 5:
+						// 4 seconds with DTCs active
+						isobus::ParameterGroupNumberRequestProtocol::request_parameter_group_number(129026, TestInternalECU, targetECU);
+						isobus::ParameterGroupNumberRequestProtocol::request_parameter_group_number(129029, TestInternalECU, targetECU);
+						break;
+					case 6:
 						// Set the DTCs inactive. This should put them in the DM2 message
 						diagnosticProtocol.set_diagnostic_trouble_code_active(testDTC1, false);
 						diagnosticProtocol.set_diagnostic_trouble_code_active(testDTC2, false);
 						diagnosticProtocol.set_diagnostic_trouble_code_active(testDTC3, false);
 						break;
 					/*
-					case 3:
+					case 7:
 						// Alternatively, you could also just send the message yourself like this:
 						isobus::CANNetworkManager::CANNetwork.send_can_message(
 							static_cast<std::uint32_t>(isobus::CANLibParameterGroupNumber::ECUIdentificationInformation),
@@ -427,7 +435,7 @@ int main()
 				}
 			}
 			state++;
-			if (state > 5){
+			if (state > 6){
 				state = 0;
 			}
 			
