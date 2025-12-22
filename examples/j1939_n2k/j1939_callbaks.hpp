@@ -141,9 +141,11 @@ std::vector<uint8_t> build_component_information_message() {
 bool send_multipacket_response(
 	std::uint32_t pgn,
 	const std::vector<uint8_t>& data,
+	void *parent,
 	std::shared_ptr<isobus::ControlFunction> destination
 ) {
 	// Usar transport protocol para enviar dados
+	/*
 	auto allInternalCFs = isobus::CANNetworkManager::CANNetwork.get_internal_control_functions();
 	std::shared_ptr<isobus::InternalControlFunction> internalECU;
 	for (auto& cf: allInternalCFs){
@@ -152,6 +154,9 @@ bool send_multipacket_response(
 			break;
 		}
 	}
+	*/
+    // Obtém a Internal Control Function para enviar a resposta
+    auto internalECU = static_cast<isobus::InternalControlFunction*>(parent);
 	std::cout << "Src addr: " << static_cast<int>(internalECU->get_address());
 	if (destination != nullptr){
 		std::cout << " - Dst addr: " << static_cast<int>(destination->get_address()) << std::endl;
@@ -159,7 +164,7 @@ bool send_multipacket_response(
 			pgn,
 			data.data(),
 			data.size(),
-			internalECU,
+			std::shared_ptr<isobus::InternalControlFunction>(internalECU, [](auto*){}),
 			destination,
 			isobus::CANIdentifier::CANPriority::PriorityDefault6
 		);
@@ -176,13 +181,13 @@ bool handle_component_information_request(
 								std::shared_ptr<isobus::ControlFunction> requestingControlFunction,
 								bool &acknowledge,
 								isobus::AcknowledgementType &acknowledgeType,
-								void *)
+								void *parent)
 {
 	std::cout << "[PGN Request] - Component Information pgn:" << parameterGroupNumber << std::endl;
 	
 	std::vector<uint8_t> ecuData = build_component_information_message();
 	//std::cout << "Message size: " << ecuData.size() << std::endl;
-	bool success = send_multipacket_response(parameterGroupNumber, ecuData, requestingControlFunction);
+	bool success = send_multipacket_response(parameterGroupNumber, ecuData, parent, requestingControlFunction);
 	
 	acknowledge = true;
 	acknowledgeType = success ? isobus::AcknowledgementType::Positive : isobus::AcknowledgementType::Negative;

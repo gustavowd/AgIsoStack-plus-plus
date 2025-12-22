@@ -47,6 +47,34 @@ void signal_handler(int)
 	running = false;
 }
 
+/*
+bool reset_can_interface(const std::string& interface_name = "can0", 
+                         int bitrate = 500000) {
+    std::string down_cmd = "sudo ip link set " + interface_name + " down";
+    std::string up_cmd = "sudo ip link set " + interface_name + 
+                        " up type can bitrate " + std::to_string(bitrate);
+    
+    // Desliga a interface
+    if (std::system(down_cmd.c_str()) != 0) {
+        std::cerr << "Erro ao desligar interface CAN" << std::endl;
+        return false;
+    }
+    
+    // Pequeno delay
+	std::this_thread::sleep_for(std::chrono::milliseconds(1000)); // Wait a bit before proceeding
+    //usleep(500000); // 500ms
+    
+    // Liga a interface
+    if (std::system(up_cmd.c_str()) != 0) {
+        std::cerr << "Erro ao ligar interface CAN" << std::endl;
+        return false;
+    }
+    
+    std::cout << "Interface CAN resetada com sucesso" << std::endl;
+    return true;
+}
+*/
+
 
 class CustomLogger : public isobus::CANStackLogger
 {
@@ -86,7 +114,7 @@ int main()
 	}
 
 	// Define o número de canais CAN e atribui o driver ao canal 0
-	isobus::CANHardwareInterface::set_number_of_can_channels(1);
+	isobus::CANHardwareInterface::set_number_of_can_channels(1, 200);
 	isobus::CANHardwareInterface::assign_can_channel_frame_handler(0, canDriver);
 
 	if ((!isobus::CANHardwareInterface::start()) || (!canDriver->get_is_valid()))
@@ -340,7 +368,7 @@ int main()
 		if (pgn_protocol->register_pgn_request_callback(
 			static_cast<std::uint32_t>(isobus::CANLibParameterGroupNumber::ComponentIdentification),
 			handle_component_information_request,
-			nullptr
+			TestInternalECU.get()
 		)) {
 			std::cout << "PGN request protocol callback registered successfully." << std::endl;
 		} else {
@@ -443,6 +471,7 @@ int main()
 		std::this_thread::sleep_for(std::chrono::milliseconds(50));
 	}
 
+	//reset_can_interface("can0", 500000);
 	isobus::CANHardwareInterface::stop();
 	return 0;
 }
