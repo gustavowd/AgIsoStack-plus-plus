@@ -124,6 +124,8 @@ if(BUILD_EXAMPLES)
   add_subdirectory("examples/task_controller_server")
   add_subdirectory("examples/guidance")
   add_subdirectory("examples/seeder_example")
+  #add_subdirectory("examples/bootloader")
+  add_subdirectory("examples/j1939_n2k")
 endif()
 
 if(BUILD_TESTING)
