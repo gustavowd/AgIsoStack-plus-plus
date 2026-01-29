@@ -35,78 +35,90 @@
 
 #define PI 3.141592653589793238463
 
-void on_cog_sog_update(const std::shared_ptr<isobus::NMEA2000Messages::CourseOverGroundSpeedOverGroundRapidUpdate> message, bool changed)
+void on_cog_sog_update(const std::shared_ptr<isobus::NMEA2000Messages::CourseOverGroundSpeedOverGroundRapidUpdate> &message, bool changed)
 {
-	std::cout << "COG/SOG update: (updated=" << changed << ")" << std::endl;
-	std::cout << "  SID: " << static_cast<int>(message->get_sequence_id()) << std::endl;
-	std::cout << "  COG reference: " << static_cast<int>(message->get_course_over_ground_reference()) << std::endl;
-	std::cout << "  COG: " << message->get_course_over_ground() / (PI / 180) << " degrees" << std::endl;
-	std::cout << "  SOG: " << message->get_speed_over_ground() * 3.6 << " km/h" << std::endl;
+    if (message) {
+        std::cout << "COG/SOG update: (updated=" << changed << ")" << std::endl;
+        std::cout << "  SID: " << static_cast<int>(message->get_sequence_id()) << std::endl;
+        std::cout << "  COG reference: " << static_cast<int>(message->get_course_over_ground_reference()) << std::endl;
+        std::cout << "  COG: " << message->get_course_over_ground() / (PI / 180) << " degrees" << std::endl;
+        std::cout << "  SOG: " << message->get_speed_over_ground() * 3.6 << " km/h" << std::endl;
+    }
 }
 
 void on_datum_update(const std::shared_ptr<isobus::NMEA2000Messages::Datum> message, bool changed)
 {
-	std::cout << "Datum update: (updated=" << changed << ")" << std::endl;
-	std::cout << "  Local datum: " << message->get_local_datum() << std::endl;
-	std::cout << "  Delta latitude: " << message->get_delta_latitude() << " degrees" << std::endl;
-	std::cout << "  Delta longitude: " << message->get_delta_longitude() << " degrees" << std::endl;
-	std::cout << "  Delta altitude: " << message->get_delta_altitude() << " m" << std::endl;
-	std::cout << "  Reference datum: " << message->get_reference_datum() << std::endl;
+    if (message) {
+        std::cout << "Datum update: (updated=" << changed << ")" << std::endl;
+        std::cout << "  Local datum: " << message->get_local_datum() << std::endl;
+        std::cout << "  Delta latitude: " << message->get_delta_latitude() << " degrees" << std::endl;
+        std::cout << "  Delta longitude: " << message->get_delta_longitude() << " degrees" << std::endl;
+        std::cout << "  Delta altitude: " << message->get_delta_altitude() << " m" << std::endl;
+        std::cout << "  Reference datum: " << message->get_reference_datum() << std::endl;
+    }
 }
 
-void on_position_update(const std::shared_ptr<isobus::NMEA2000Messages::GNSSPositionData> message, bool changed)
+void on_position_update(const std::shared_ptr<isobus::NMEA2000Messages::GNSSPositionData> &message, bool changed)
 {
-	const auto daysSinceEpoch = std::chrono::duration_cast<std::chrono::hours>(std::chrono::system_clock::now().time_since_epoch()).count() / 24;
-	const auto secondsSinceMidnight = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count() % (24 * 60 * 60);
+    if (message) {
+        const auto daysSinceEpoch = std::chrono::duration_cast<std::chrono::hours>(std::chrono::system_clock::now().time_since_epoch()).count() / 24;
+        const auto secondsSinceMidnight = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count() % (24 * 60 * 60);
 
-	std::cout << "Position update: (updated=" << changed << ")" << std::endl;
-	std::cout << "  SID: " << static_cast<int>(message->get_sequence_id()) << std::endl;
+        std::cout << "Position update: (updated=" << changed << ")" << std::endl;
+        std::cout << "  SID: " << static_cast<int>(message->get_sequence_id()) << std::endl;
 
-	std::cout << "  Date: " << static_cast<int>(message->get_position_date()) << " days since epoch"
-	          << " (today is " << static_cast<int>(daysSinceEpoch) << ")" << std::endl;
-	std::cout << "  Time: " << static_cast<int>(message->get_position_time()) << " seconds since midnight"
-	          << " (now is " << static_cast<int>(secondsSinceMidnight) << ")" << std::endl;
-	std::cout << "  Latitude: " << message->get_latitude() << " degrees" << std::endl;
-	std::cout << "  Longitude: " << message->get_longitude() << " degrees" << std::endl;
-	std::cout << "  Altitude: " << message->get_altitude() << " m" << std::endl;
-	std::cout << "  GNSS type: " << static_cast<int>(message->get_gnss_method()) << std::endl;
-	std::cout << "  Method: " << static_cast<int>(message->get_gnss_method()) << std::endl;
-	std::cout << "  Number of satellites: " << static_cast<int>(message->get_number_of_space_vehicles()) << std::endl;
-	std::cout << "  HDOP: " << message->get_horizontal_dilution_of_precision() << std::endl;
-	std::cout << "  PDOP: " << message->get_positional_dilution_of_precision() << std::endl;
-	std::cout << "  Geoidal separation: " << message->get_geoidal_separation() << " m" << std::endl;
-	std::cout << "  Number of reference stations: " << static_cast<int>(message->get_number_of_reference_stations()) << std::endl;
-	for (uint8_t i = 0; i < message->get_number_of_reference_stations(); i++)
-	{
-		std::cout << "    Reference station " << static_cast<int>(i) << ":" << std::endl;
-		std::cout << "      Station ID: " << static_cast<int>(message->get_reference_station_id(i)) << std::endl;
-		std::cout << "      Type of system: " << static_cast<int>(message->get_reference_station_system_type(i)) << std::endl;
-		std::cout << "      Age of correction: " << message->get_reference_station_corrections_age(i) << " sec" << std::endl;
-	}
+        std::cout << "  Date: " << static_cast<int>(message->get_position_date()) << " days since epoch"
+                << " (today is " << static_cast<int>(daysSinceEpoch) << ")" << std::endl;
+        std::cout << "  Time: " << static_cast<int>(message->get_position_time()) << " seconds since midnight"
+                << " (now is " << static_cast<int>(secondsSinceMidnight) << ")" << std::endl;
+        std::cout << "  Latitude: " << message->get_latitude() << " degrees" << std::endl;
+        std::cout << "  Longitude: " << message->get_longitude() << " degrees" << std::endl;
+        std::cout << "  Altitude: " << message->get_altitude() << " m" << std::endl;
+        std::cout << "  GNSS type: " << static_cast<int>(message->get_gnss_method()) << std::endl;
+        std::cout << "  Method: " << static_cast<int>(message->get_gnss_method()) << std::endl;
+        std::cout << "  Number of satellites: " << static_cast<int>(message->get_number_of_space_vehicles()) << std::endl;
+        std::cout << "  HDOP: " << message->get_horizontal_dilution_of_precision() << std::endl;
+        std::cout << "  PDOP: " << message->get_positional_dilution_of_precision() << std::endl;
+        std::cout << "  Geoidal separation: " << message->get_geoidal_separation() << " m" << std::endl;
+        std::cout << "  Number of reference stations: " << static_cast<int>(message->get_number_of_reference_stations()) << std::endl;
+        for (uint8_t i = 0; i < message->get_number_of_reference_stations(); i++)
+        {
+            std::cout << "    Reference station " << static_cast<int>(i) << ":" << std::endl;
+            std::cout << "      Station ID: " << static_cast<int>(message->get_reference_station_id(i)) << std::endl;
+            std::cout << "      Type of system: " << static_cast<int>(message->get_reference_station_system_type(i)) << std::endl;
+            std::cout << "      Age of correction: " << message->get_reference_station_corrections_age(i) << " sec" << std::endl;
+        }
+    }
 }
 
-void on_position_rapid_update(const std::shared_ptr<isobus::NMEA2000Messages::PositionRapidUpdate> message, bool changed)
+void on_position_rapid_update(const std::shared_ptr<isobus::NMEA2000Messages::PositionRapidUpdate> &message, bool changed)
 {
-	std::cout << "Position rapid update: (updated=" << changed << ")" << std::endl;
-	std::cout << "  Latitude: " << message->get_latitude() << " degrees" << std::endl;
-	std::cout << "  Longitude: " << message->get_longitude() << " degrees" << std::endl;
+    if (message) {
+        std::cout << "Position rapid update: (updated=" << changed << ")" << std::endl;
+        std::cout << "  Latitude: " << message->get_latitude() << " degrees" << std::endl;
+        std::cout << "  Longitude: " << message->get_longitude() << " degrees" << std::endl;
+    }
 }
 
-void on_turn_rate_update(const std::shared_ptr<isobus::NMEA2000Messages::RateOfTurn> message, bool changed)
+void on_turn_rate_update(const std::shared_ptr<isobus::NMEA2000Messages::RateOfTurn> &message, bool changed)
 {
-	std::cout << "Rate of turn update: (updated=" << changed << ")" << std::endl;
-	std::cout << "  SID: " << static_cast<int>(message->get_sequence_id()) << std::endl;
-	std::cout << "  Rate of turn: " << message->get_rate_of_turn() / (PI / 180) << " degrees/s" << std::endl;
+    if (message) {
+        std::cout << "Rate of turn update: (updated=" << changed << ")" << std::endl;
+        std::cout << "  SID: " << static_cast<int>(message->get_sequence_id()) << std::endl;
+        std::cout << "  Rate of turn: " << message->get_rate_of_turn() / (PI / 180) << " degrees/s" << std::endl;
+    }
 }
 
-void on_vessel_heading_update(const std::shared_ptr<isobus::NMEA2000Messages::VesselHeading> message, bool changed)
+void on_vessel_heading_update(const std::shared_ptr<isobus::NMEA2000Messages::VesselHeading> &message, bool changed)
 {
-	std::cout << "Vessel heading update: (updated=" << changed << ")" << std::endl;
-	std::cout << "  SID: " << static_cast<int>(message->get_sequence_id()) << std::endl;
-	std::cout << "  Heading: " << message->get_heading() / (PI / 180) << " degrees" << std::endl;
-	std::cout << "  Magnetic deviation: " << message->get_magnetic_deviation() / (PI / 180) << " degrees" << std::endl;
-	std::cout << "  Magnetic variation: " << message->get_magnetic_variation() / (PI / 180) << " degrees" << std::endl;
-	std::cout << "  Sensor reference: " << static_cast<int>(message->get_sensor_reference()) << std::endl;
+    if (message) {
+        std::cout << "Vessel heading update: (updated=" << changed << ")" << std::endl;
+        std::cout << "  SID: " << static_cast<int>(message->get_sequence_id()) << std::endl;
+        std::cout << "  Heading: " << message->get_heading() / (PI / 180) << " degrees" << std::endl;
+        std::cout << "  Magnetic deviation: " << message->get_magnetic_deviation() / (PI / 180) << " degrees" << std::endl;
+        std::cout << "  Magnetic variation: " << message->get_magnetic_variation() / (PI / 180) << " degrees" << std::endl;
+        std::cout << "  Sensor reference: " << static_cast<int>(message->get_sensor_reference()) << std::endl;
+    }
 }
 
 /*
