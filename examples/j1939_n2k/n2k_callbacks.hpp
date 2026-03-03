@@ -38,6 +38,17 @@
 void on_cog_sog_update(const std::shared_ptr<isobus::NMEA2000Messages::CourseOverGroundSpeedOverGroundRapidUpdate> &message, bool changed)
 {
     if (message) {
+	// Obtém o ponteiro para a Control Function de origem
+        auto sourceCF = message->get_control_function();
+
+        if (sourceCF) {
+            // 2. Obtém o endereço atual (8-bit)
+            std::uint8_t sourceAddress = sourceCF->get_address();
+
+            std::cout << "Mensagem COG/SOG recebida a partir do ECU " 
+                      << static_cast<int>(sourceAddress) << std::endl;
+        }
+
         std::cout << "COG/SOG update: (updated=" << changed << ")" << std::endl;
         std::cout << "  SID: " << static_cast<int>(message->get_sequence_id()) << std::endl;
         std::cout << "  COG reference: " << static_cast<int>(message->get_course_over_ground_reference()) << std::endl;
@@ -61,6 +72,17 @@ void on_datum_update(const std::shared_ptr<isobus::NMEA2000Messages::Datum> mess
 void on_position_update(const std::shared_ptr<isobus::NMEA2000Messages::GNSSPositionData> &message, bool changed)
 {
     if (message) {
+        // Obtém o ponteiro para a Control Function de origem
+        auto sourceCF = message->get_control_function();
+
+        if (sourceCF) {
+            // 2. Obtém o endereço atual (8-bit)
+            std::uint8_t sourceAddress = sourceCF->get_address();
+
+            std::cout << "Mensagem GNSS position recebida a partir do ECU " 
+                      << static_cast<int>(sourceAddress) << std::endl;
+        }
+
         const auto daysSinceEpoch = std::chrono::duration_cast<std::chrono::hours>(std::chrono::system_clock::now().time_since_epoch()).count() / 24;
         const auto secondsSinceMidnight = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count() % (24 * 60 * 60);
 
@@ -94,6 +116,17 @@ void on_position_update(const std::shared_ptr<isobus::NMEA2000Messages::GNSSPosi
 void on_position_rapid_update(const std::shared_ptr<isobus::NMEA2000Messages::PositionRapidUpdate> &message, bool changed)
 {
     if (message) {
+        // Obtém o ponteiro para a Control Function de origem
+        auto sourceCF = message->get_control_function();
+
+        if (sourceCF) {
+            // 2. Obtém o endereço atual (8-bit)
+            std::uint8_t sourceAddress = sourceCF->get_address();
+
+            std::cout << "Mensagem position rapid update recebida a partir do ECU " 
+                      << static_cast<int>(sourceAddress) << std::endl;
+        }
+
         std::cout << "Position rapid update: (updated=" << changed << ")" << std::endl;
         std::cout << "  Latitude: " << message->get_latitude() << " degrees" << std::endl;
         std::cout << "  Longitude: " << message->get_longitude() << " degrees" << std::endl;
@@ -103,6 +136,17 @@ void on_position_rapid_update(const std::shared_ptr<isobus::NMEA2000Messages::Po
 void on_turn_rate_update(const std::shared_ptr<isobus::NMEA2000Messages::RateOfTurn> &message, bool changed)
 {
     if (message) {
+        // Obtém o ponteiro para a Control Function de origem
+        auto sourceCF = message->get_control_function();
+
+        if (sourceCF) {
+            // 2. Obtém o endereço atual (8-bit)
+            std::uint8_t sourceAddress = sourceCF->get_address();
+
+            std::cout << "Mensagem Rate of turn recebida a partir do ECU " 
+                      << static_cast<int>(sourceAddress) << std::endl;
+        }
+
         std::cout << "Rate of turn update: (updated=" << changed << ")" << std::endl;
         std::cout << "  SID: " << static_cast<int>(message->get_sequence_id()) << std::endl;
         std::cout << "  Rate of turn: " << message->get_rate_of_turn() / (PI / 180) << " degrees/s" << std::endl;
@@ -112,6 +156,17 @@ void on_turn_rate_update(const std::shared_ptr<isobus::NMEA2000Messages::RateOfT
 void on_vessel_heading_update(const std::shared_ptr<isobus::NMEA2000Messages::VesselHeading> &message, bool changed)
 {
     if (message) {
+        // Obtém o ponteiro para a Control Function de origem
+        auto sourceCF = message->get_control_function();
+
+        if (sourceCF) {
+            // 2. Obtém o endereço atual (8-bit)
+            std::uint8_t sourceAddress = sourceCF->get_address();
+
+            std::cout << "Mensagem vessel heading recebida a partir do ECU " 
+                      << static_cast<int>(sourceAddress) << std::endl;
+        }
+
         std::cout << "Vessel heading update: (updated=" << changed << ")" << std::endl;
         std::cout << "  SID: " << static_cast<int>(message->get_sequence_id()) << std::endl;
         std::cout << "  Heading: " << message->get_heading() / (PI / 180) << " degrees" << std::endl;

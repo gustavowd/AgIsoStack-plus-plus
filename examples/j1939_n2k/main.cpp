@@ -42,6 +42,19 @@
 
 static std::atomic_bool running = { true };
 
+void setup_can_interface() {
+    std::cout << "[SISTEMA] Reiniciando interface can0..." << std::endl;
+    // Força o fechamento para limpar buffers e resetar o chip
+    std::system("sudo ip link set can0 down 2>/dev/null");
+    // Sobe a interface com o bitrate correto (250k para J1939/ISOBUS)
+    std::system("sudo ip link set can0 up type can bitrate 500000");
+}
+
+void close_can_interface() {
+    std::cout << "[SISTEMA] Desligando interface can0..." << std::endl;
+    std::system("sudo ip link set can0 down");
+}
+
 void signal_handler(int)
 {
 	running = false;
@@ -102,6 +115,8 @@ public:
 int main()
 {
 	std::signal(SIGINT, signal_handler);
+
+	setup_can_interface();
 
 	std::shared_ptr<isobus::CANHardwarePlugin> canDriver = nullptr;
 	canDriver = std::make_shared<isobus::SocketCANInterface>("can0");
@@ -384,6 +399,7 @@ int main()
 	int counter = 0;
 	int counter_seq = 0;
 	int state = 0;
+	uint8_t ecu_address = 129;
 	//std::vector<uint8_t> ecuData = build_ecu_information_message();
 
 	while (running)
@@ -404,9 +420,9 @@ int main()
 		// Every 2 seconds, request the software information PGN from another device
 		if (counter >= 40){
 			counter = 0;
-			auto targetECU = findECUByAddress(129);
+			auto targetECU = findECUByAddress(ecu_address);
 			if (targetECU  == nullptr) {
-				std::cerr << "ECU 129 não encontrado na rede!" << std::endl;
+				std::cerr << "ECU " << static_cast<std::uint32_t>(ecu_address) << " não encontrado na rede!" << std::endl;
 			}
 
 			if (targetECU) {
@@ -445,6 +461,14 @@ int main()
 						diagnosticProtocol.set_diagnostic_trouble_code_active(testDTC2, false);
 						diagnosticProtocol.set_diagnostic_trouble_code_active(testDTC3, false);
 						break;
+					case 7:
+						if (ecu_address == 129){
+			                                ecu_address = 130;
+                        			}else{
+			                                ecu_address = 129;
+                        			}
+						break;
+
 					/*
 					case 7:
 						// Alternatively, you could also just send the message yourself like this:
@@ -463,7 +487,7 @@ int main()
 				}
 			}
 			state++;
-			if (state > 6){
+			if (state > 7){
 				state = 0;
 			}
 			
@@ -473,5 +497,6 @@ int main()
 
 	//reset_can_interface("can0", 500000);
 	isobus::CANHardwareInterface::stop();
+	close_can_interface();
 	return 0;
 }
