@@ -241,6 +241,7 @@ int main()
 	isobus::NMEA2000MessageInterface n2kInterface(TestInternalECU, false, false, false, false, false, false, false);
 	n2kInterface.initialize();
 
+	#if 0
 	// The sequence identifier is set to an arbitrary value, but is in practice used to tie related messages together.
 	// Example: A GNSS position message and a COG/SOG message that are not sent at the same time, but their sequence identifiers are the same,
 	// then the data can be seen as taken at the same time.
@@ -304,6 +305,7 @@ int main()
 	vessel_heading_message.set_magnetic_variation(-5236); // -0.5236 radians = -30 degrees
 	vessel_heading_message.set_sensor_reference(isobus::NMEA2000Messages::VesselHeading::HeadingSensorReference::Error);
 	n2kInterface.set_enable_sending_vessel_heading_cyclically(true);
+	#endif
 
 	/*
 	// PGN 126992 - System Time
@@ -397,7 +399,7 @@ int main()
 	std::cout << "Starting to send NMEA2K messages. Press Ctrl+C to stop." << std::endl;
 
 	int counter = 0;
-	int counter_seq = 0;
+	//int counter_seq = 0;
 	int state = 0;
 	uint8_t ecu_address = 129;
 	//std::vector<uint8_t> ecuData = build_ecu_information_message();
@@ -405,6 +407,7 @@ int main()
 	while (running)
 	{
 		// Update the NMEA2K interface periodically so that it can send messages
+		#if 0
 		n2kInterface.update();
 		counter++;
 		counter_seq++;
@@ -417,6 +420,9 @@ int main()
 			cog_sog_message.set_sequence_id(sequenceIdentifier);
 			position_data_message.set_sequence_id(sequenceIdentifier);
 		}
+		#else
+		counter++;
+		#endif
 		// Every 2 seconds, request the software information PGN from another device
 		if (counter >= 40){
 			counter = 0;
