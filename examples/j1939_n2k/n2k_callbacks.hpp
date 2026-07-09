@@ -83,16 +83,27 @@ void on_position_update(const std::shared_ptr<isobus::NMEA2000Messages::GNSSPosi
                       << static_cast<int>(sourceAddress) << std::endl;
         }
 
-        const auto daysSinceEpoch = std::chrono::duration_cast<std::chrono::hours>(std::chrono::system_clock::now().time_since_epoch()).count() / 24;
-        const auto secondsSinceMidnight = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count() % (24 * 60 * 60);
-
         std::cout << "Position update: (updated=" << changed << ")" << std::endl;
         std::cout << "  SID: " << static_cast<int>(message->get_sequence_id()) << std::endl;
 
-        std::cout << "  Date: " << static_cast<int>(message->get_position_date()) << " days since epoch"
-                << " (today is " << static_cast<int>(daysSinceEpoch) << ")" << std::endl;
-        std::cout << "  Time: " << static_cast<int>(message->get_position_time()) << " seconds since midnight"
-                << " (now is " << static_cast<int>(secondsSinceMidnight) << ")" << std::endl;
+        // Recupa os valores brutos da mensagem
+        uint16_t msgDays = message->get_position_date();
+        uint32_t msgSeconds = message->get_position_time();
+
+        // Converte para um time_point usando std::chrono
+        // Somamos os dias desde 1970 + os segundos do dia atual
+        std::chrono::system_clock::time_point messageTimePoint{
+            std::chrono::hours(msgDays * 24) + std::chrono::seconds(msgSeconds)
+        };
+
+        // Converte para time_t para podermos formatar como string (em UTC)
+        std::time_t messageTimeT = std::chrono::system_clock::to_time_t(messageTimePoint);
+        std::tm* utcTime = std::gmtime(&messageTimeT);
+
+        // Imprime a data e hora formatadas
+        std::cout << "  Timestamp do GNSS: " 
+                << std::put_time(utcTime, "%Y-%m-%d %H:%M:%S") << " UTC" << std::endl;
+
         std::cout << "  Latitude: " << message->get_latitude() << " degrees" << std::endl;
         std::cout << "  Longitude: " << message->get_longitude() << " degrees" << std::endl;
         std::cout << "  Altitude: " << message->get_altitude() << " m" << std::endl;

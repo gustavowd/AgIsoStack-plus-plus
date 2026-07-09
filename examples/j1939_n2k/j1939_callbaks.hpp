@@ -136,6 +136,22 @@ std::vector<uint8_t> build_component_information_message() {
     return message;
 }
 
+void transmit_complete_callback(std::uint32_t pgn,
+                                std::uint32_t /*dataLength*/, // Sem nome para evitar o warning
+                                std::shared_ptr<isobus::InternalControlFunction> /*source*/,
+                                std::shared_ptr<isobus::ControlFunction> /*destination*/,
+                                bool successful,
+                                void* /*parentPointer*/)
+{
+    if (successful)
+    {
+        std::cout << "Mensagem TP " << std::hex << pgn << " entregue com sucesso!" << std::endl;
+    }
+    else
+    {
+        std::cerr << "Falha na entrega da mensagem TP " << std::hex << pgn << std::endl;
+    }
+}
 
 // Função auxiliar para enviar resposta multipacket
 bool send_multipacket_response(
@@ -166,7 +182,9 @@ bool send_multipacket_response(
 			data.size(),
 			std::shared_ptr<isobus::InternalControlFunction>(internalECU, [](auto*){}),
 			destination,
-			isobus::CANIdentifier::CANPriority::PriorityDefault6
+			isobus::CANIdentifier::CANPriority::PriorityDefault6,
+			transmit_complete_callback,
+			nullptr
 		);
 	}else{
 		std::cout << std::endl;
