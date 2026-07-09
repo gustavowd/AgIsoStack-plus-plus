@@ -86,23 +86,31 @@ void on_position_update(const std::shared_ptr<isobus::NMEA2000Messages::GNSSPosi
         std::cout << "Position update: (updated=" << changed << ")" << std::endl;
         std::cout << "  SID: " << static_cast<int>(message->get_sequence_id()) << std::endl;
 
-        // Recupa os valores brutos da mensagem
+        // Recupera os valores da mensagem (Garantindo que msgDays exista!)
         uint16_t msgDays = message->get_position_date();
-        uint32_t msgSeconds = message->get_position_time();
+        double msgSecondsRaw = message->get_position_time(); 
 
-        // Converte para um time_point usando std::chrono
-        // Somamos os dias desde 1970 + os segundos do dia atual
-        std::chrono::system_clock::time_point messageTimePoint{
-            std::chrono::hours(msgDays * 24) + std::chrono::seconds(msgSeconds)
-        };
+        uint32_t msgSeconds = static_cast<uint32_t>(msgSecondsRaw);
+        uint32_t msgMicroseconds = static_cast<uint32_t>((msgSecondsRaw - msgSeconds) * 1000000.0 + 0.5);
 
-        // Converte para time_t para podermos formatar como string (em UTC)
+        // Calcula a duração total em segundos desde a Epoch de forma explícita
+        // Evita o erro de inicialização com chaves '{}' misturando durações diferentes
+        auto totalDurationSinceEpoch = std::chrono::seconds(static_cast<long long>(msgDays) * 86400LL + msgSeconds);
+
+        // Cria o time_point associando a duração calculada ao relógio do sistema
+        std::chrono::system_clock::time_point messageTimePoint(
+            std::chrono::duration_cast<std::chrono::system_clock::duration>(totalDurationSinceEpoch)
+        );
+
+        // Converte para time_t e depois para estrutura tm em UTC
         std::time_t messageTimeT = std::chrono::system_clock::to_time_t(messageTimePoint);
         std::tm* utcTime = std::gmtime(&messageTimeT);
 
-        // Imprime a data e hora formatadas
+        // Imprime formatado com microsegundos
         std::cout << "  Timestamp do GNSS: " 
-                << std::put_time(utcTime, "%Y-%m-%d %H:%M:%S") << " UTC" << std::endl;
+                << std::put_time(utcTime, "%Y-%m-%d %H:%M:%S") 
+                << "." << std::setfill('0') << std::setw(6) << msgMicroseconds 
+                << " UTC" << std::endl;
 
         std::cout << "  Latitude: " << message->get_latitude() << " degrees" << std::endl;
         std::cout << "  Longitude: " << message->get_longitude() << " degrees" << std::endl;
