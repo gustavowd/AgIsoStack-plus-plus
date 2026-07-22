@@ -20,10 +20,41 @@
 #include "isobus/utility/system_timing.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cstring>
 
 namespace isobus
 {
+	namespace
+	{
+		constexpr std::size_t FAST_PACKET_FIRST_FRAME_PAYLOAD_BYTES = 6;
+		constexpr std::size_t FAST_PACKET_CONTINUATION_PAYLOAD_BYTES = 7;
+
+		std::size_t get_frame_payload_offset(std::uint8_t frameCount)
+		{
+			if (0 == frameCount)
+			{
+				return 0;
+			}
+
+			return FAST_PACKET_FIRST_FRAME_PAYLOAD_BYTES +
+			       (static_cast<std::size_t>(frameCount - 1) * FAST_PACKET_CONTINUATION_PAYLOAD_BYTES);
+		}
+
+		std::size_t get_frame_payload_bytes(std::uint8_t frameCount, std::uint8_t messageLength)
+		{
+			const std::size_t frameOffset = get_frame_payload_offset(frameCount);
+			if (frameOffset >= messageLength)
+			{
+				return 0;
+			}
+
+			const std::size_t frameCapacity = (0 == frameCount) ? FAST_PACKET_FIRST_FRAME_PAYLOAD_BYTES :
+			                                                     FAST_PACKET_CONTINUATION_PAYLOAD_BYTES;
+			return std::min(frameCapacity, static_cast<std::size_t>(messageLength) - frameOffset);
+		}
+	} // namespace
+
 	FastPacketProtocol::FastPacketProtocolSession::FastPacketProtocolSession(TransportProtocolSessionBase::Direction direction,
 	                                                                         std::unique_ptr<CANMessageData> data,
 	                                                                         std::uint32_t parameterGroupNumber,
@@ -325,40 +356,77 @@ namespace isobus
 			}
 			else
 			{
-				// Correct sequence number, copy the data (hybrid optimization)
+				std::uint8_t actualSequenceNumber =
+				  (message.get_uint8_at(0) >> SEQUENCE_NUMBER_BIT_OFFSET) & SEQUENCE_NUMBER_BIT_MASK;
+
+				if (actualSequenceNumber != session->sequenceNumber)
+				{
+					LOG_ERROR("[FP]: Aborting Rx session due to unexpected sequence number. Expected %u, received %u.",
+					          session->sequenceNumber,
+					          actualSequenceNumber);
+					close_session(session, false);
+					return;
+				}
+
+				if (actualFrameCount >= session->get_total_number_of_packets())
+				{
+					LOG_ERROR("[FP]: Aborting Rx session due to invalid frame counter. Maximum valid counter %u, received %u.",
+					          static_cast<unsigned>(session->get_total_number_of_packets() - 1),
+					          actualFrameCount);
+					close_session(session, false);
+					return;
+				}
+
+				const std::uint32_t frameMaskBit = (1u << actualFrameCount);
+				if (0 != (session->receivedFrameMask & frameMaskBit))
+				{
+					LOG_WARNING("[FP]: Ignoring duplicate Rx frame %u for PGN %u.",
+					            actualFrameCount,
+					            message.get_identifier().get_parameter_group_number());
+					return;
+				}
+
+				const std::size_t frameOffset = get_frame_payload_offset(actualFrameCount);
+				const std::size_t bytesToCopy = get_frame_payload_bytes(actualFrameCount, session->get_message_length());
+				if (0 == bytesToCopy)
+				{
+					LOG_ERROR("[FP]: Aborting Rx session due to invalid frame payload bounds for frame %u.",
+					          actualFrameCount);
+					close_session(session, false);
+					return;
+				}
+
+				// Store the continuation frame at its byte offset so out-of-order delivery can be reassembled.
 				// Convert data type to a vector to allow for manipulation
 				auto &data = static_cast<CANMessageDataVector &>(session->get_data());
 
 				// Defensive bounds check to prevent potential buffer overflow
-				if (session->numberOfBytesTransferred >= session->get_message_length())
+				if ((frameOffset + bytesToCopy) > session->get_message_length())
 				{
-					LOG_ERROR("[FP]: Protocol violation - bytes transferred %u exceeds message length %u",
-					          session->numberOfBytesTransferred,
+					LOG_ERROR("[FP]: Protocol violation - frame %u exceeds message length %u",
+					          actualFrameCount,
 					          session->get_message_length());
 					close_session(session, false);
 					return;
 				}
 
-				std::size_t bytes_to_copy = std::min(
-				  static_cast<std::size_t>(PROTOCOL_BYTES_PER_FRAME),
-				  static_cast<std::size_t>(session->get_message_length() - session->numberOfBytesTransferred));
-
-				if (bytes_to_copy > 0)
+				if (bytesToCopy > 0)
 				{
-					if (bytes_to_copy <= 4)
+					if (bytesToCopy <= 4)
 					{
 						// Use byte-by-byte for small copies (better for tiny data)
-						for (std::size_t i = 0; i < bytes_to_copy; i++)
+						for (std::size_t i = 0; i < bytesToCopy; i++)
 						{
-							data[session->numberOfBytesTransferred + i] = message.get_data().data()[1 + i];
+							data[frameOffset + i] = message.get_data().data()[1 + i];
 						}
 					}
 					else
 					{
 						// Use memcpy for larger copies (better for bulk data)
-						memcpy(&data[session->numberOfBytesTransferred], message.get_data().data() + 1, bytes_to_copy);
+						std::memcpy(&data[frameOffset], message.get_data().data() + 1, bytesToCopy);
 					}
-					session->add_number_of_bytes_transferred(static_cast<std::uint8_t>(bytes_to_copy));
+					session->receivedFrameMask |= frameMaskBit;
+					session->add_number_of_bytes_transferred(static_cast<std::uint8_t>(bytesToCopy));
 				}
 
 				if (session->numberOfBytesTransferred >= session->get_message_length())
@@ -416,47 +484,44 @@ namespace isobus
 				                                                      std::unique_ptr<CANMessageData>(new CANMessageDataVector(messageLength)),
 				                                                      message.get_identifier().get_parameter_group_number(),
 				                                                      messageLength,
-				                                                      (message.get_uint8_at(0) & SEQUENCE_NUMBER_BIT_MASK),
+				                                                      ((message.get_uint8_at(0) >> SEQUENCE_NUMBER_BIT_OFFSET) & SEQUENCE_NUMBER_BIT_MASK),
 				                                                      message.get_identifier().get_priority(),
 				                                                      message.get_source_control_function(),
 				                                                      message.get_destination_control_function(),
 				                                                      nullptr, // No callback
 				                                                      nullptr);
+				session->receivedFrameMask = 0x1u;
 
-				// Save the 6 bytes of payload in this first message (hybrid optimization)
+				// Save the first frame payload at byte offset zero.
 				// Convert data type to a vector to allow for manipulation
 				auto &data = static_cast<CANMessageDataVector &>(session->get_data());
 
 				// Defensive bounds check to prevent potential buffer overflow
-				if (session->numberOfBytesTransferred >= session->get_message_length())
+				const std::size_t bytesToCopy = get_frame_payload_bytes(0, session->get_message_length());
+				if (0 == bytesToCopy)
 				{
-					LOG_ERROR("[FP]: Protocol violation - bytes transferred %u exceeds message length %u",
-					          session->numberOfBytesTransferred,
+					LOG_ERROR("[FP]: Protocol violation - invalid first frame payload for message length %u",
 					          session->get_message_length());
 					close_session(session, false);
 					return;
 				}
 
-				std::size_t bytes_to_copy = std::min(
-				  static_cast<std::size_t>(PROTOCOL_BYTES_PER_FRAME - 1),
-				  static_cast<std::size_t>(session->get_message_length() - session->numberOfBytesTransferred));
-
-				if (bytes_to_copy > 0)
+				if (bytesToCopy > 0)
 				{
-					if (bytes_to_copy <= 4)
+					if (bytesToCopy <= 4)
 					{
 						// Use byte-by-byte for small copies (better for tiny data)
-						for (std::size_t i = 0; i < bytes_to_copy; i++)
+						for (std::size_t i = 0; i < bytesToCopy; i++)
 						{
-							data[session->numberOfBytesTransferred + i] = message.get_data().data()[2 + i];
+							data[i] = message.get_data().data()[2 + i];
 						}
 					}
 					else
 					{
 						// Use memcpy for larger copies (better for bulk data)
-						memcpy(&data[session->numberOfBytesTransferred], message.get_data().data() + 2, bytes_to_copy);
+						std::memcpy(&data[0], message.get_data().data() + 2, bytesToCopy);
 					}
-					session->add_number_of_bytes_transferred(static_cast<std::uint8_t>(bytes_to_copy));
+					session->add_number_of_bytes_transferred(static_cast<std::uint8_t>(bytesToCopy));
 				}
 
 				LOCK_GUARD(Mutex, sessionMutex);

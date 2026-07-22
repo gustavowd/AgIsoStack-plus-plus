@@ -38,6 +38,7 @@ set(TEST_INCLUDE helpers/control_function_helpers.hpp
 set(TEST_SRC
     core_network_management_tests.cpp
     identifier_tests.cpp
+    fast_packet_protocol_tests.cpp
     transport_protocol_tests.cpp
     diagnostic_protocol_tests.cpp
     virtual_can_plugin_tests.cpp
