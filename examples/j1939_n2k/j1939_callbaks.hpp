@@ -38,7 +38,7 @@ void bam_software_information_callback(const isobus::CANMessage &message, void *
 	auto source = message.get_source_control_function();
 	auto identifier = message.get_identifier();
 	auto pgn = identifier.get_parameter_group_number();
-	std::cout << std::endl << "[BAM] Received PGN " << static_cast<int>(pgn) << " from " << static_cast<int>(source->get_address()) << std::endl;
+	std::cout << std::endl << "[BAM] Received PGN " << static_cast<int>(pgn) << " from " << std::dec << static_cast<int>(source->get_address()) << std::endl;
   	std::cout << "Data lenght: " << message.get_data_length() << std::endl;
 	auto data_vec = message.get_data();
 	for (const auto& element : data_vec) {
@@ -99,7 +99,7 @@ bool software_information_pgn_request_handler(std::uint32_t parameterGroupNumber
 std::shared_ptr<isobus::PartneredControlFunction> findECUByAddress(int address) {
 	auto controlFunctions = isobus::CANNetworkManager::CANNetwork.get_control_functions(true);
 	for (auto& cf: controlFunctions){
-		std::cout << "ECU Address: " << static_cast<int>(cf->get_address()) << std::endl;
+		std::cout << "ECU Address: " << std::dec << static_cast<int>(cf->get_address()) << std::endl;
         if (static_cast<int>(cf->get_address()) == address) {
             return std::static_pointer_cast<isobus::PartneredControlFunction>(cf);
         }
@@ -173,9 +173,9 @@ bool send_multipacket_response(
 	*/
     // Obtém a Internal Control Function para enviar a resposta
     auto internalECU = static_cast<isobus::InternalControlFunction*>(parent);
-	std::cout << "Src addr: " << static_cast<int>(internalECU->get_address());
+	std::cout << "Src addr: " << std::dec << static_cast<int>(internalECU->get_address());
 	if (destination != nullptr){
-		std::cout << " - Dst addr: " << static_cast<int>(destination->get_address()) << std::endl;
+		std::cout << " - Dst addr: " << std::dec << static_cast<int>(destination->get_address()) << std::endl;
 		return isobus::CANNetworkManager::CANNetwork.send_can_message(
 			pgn,
 			data.data(),

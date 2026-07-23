@@ -46,7 +46,7 @@ void on_cog_sog_update(const std::shared_ptr<isobus::NMEA2000Messages::CourseOve
             std::uint8_t sourceAddress = sourceCF->get_address();
 
             std::cout << "Mensagem COG/SOG recebida a partir do ECU " 
-                      << static_cast<int>(sourceAddress) << std::endl;
+                      << std::dec << static_cast<int>(sourceAddress) << std::endl;
         }
 
         std::cout << "COG/SOG update: (updated=" << changed << ")" << std::endl;
@@ -80,7 +80,7 @@ void on_position_update(const std::shared_ptr<isobus::NMEA2000Messages::GNSSPosi
             std::uint8_t sourceAddress = sourceCF->get_address();
 
             std::cout << "Mensagem GNSS position recebida a partir do ECU " 
-                      << static_cast<int>(sourceAddress) << std::endl;
+                      << std::dec << static_cast<int>(sourceAddress) << std::endl;
         }
 
         std::cout << "Position update: (updated=" << changed << ")" << std::endl;
@@ -143,7 +143,7 @@ void on_position_rapid_update(const std::shared_ptr<isobus::NMEA2000Messages::Po
             std::uint8_t sourceAddress = sourceCF->get_address();
 
             std::cout << "Mensagem position rapid update recebida a partir do ECU " 
-                      << static_cast<int>(sourceAddress) << std::endl;
+                      << std::dec << static_cast<int>(sourceAddress) << std::endl;
         }
 
         std::cout << "Position rapid update: (updated=" << changed << ")" << std::endl;
@@ -163,7 +163,7 @@ void on_turn_rate_update(const std::shared_ptr<isobus::NMEA2000Messages::RateOfT
             std::uint8_t sourceAddress = sourceCF->get_address();
 
             std::cout << "Mensagem Rate of turn recebida a partir do ECU " 
-                      << static_cast<int>(sourceAddress) << std::endl;
+                      << std::dec << static_cast<int>(sourceAddress) << std::endl;
         }
 
         std::cout << "Rate of turn update: (updated=" << changed << ")" << std::endl;
@@ -183,7 +183,7 @@ void on_vessel_heading_update(const std::shared_ptr<isobus::NMEA2000Messages::Ve
             std::uint8_t sourceAddress = sourceCF->get_address();
 
             std::cout << "Mensagem vessel heading recebida a partir do ECU " 
-                      << static_cast<int>(sourceAddress) << std::endl;
+                      << std::dec << static_cast<int>(sourceAddress) << std::endl;
         }
 
         std::cout << "Vessel heading update: (updated=" << changed << ")" << std::endl;
