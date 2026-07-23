@@ -368,7 +368,7 @@ namespace isobus
 				{
 #if defined CAN_STACK_DISABLE_THREADS || defined ARDUINO
 					// If we don't have threads, we need to poll the hardware for messages here
-					hardwareChannels[i]->receive_can_frame();
+					while(hardwareChannels[i]->receive_can_frame()){};
 #endif
 
 					isobus::CANMessageFrame frame;
