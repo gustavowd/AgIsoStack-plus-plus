@@ -98,6 +98,7 @@ namespace isobus
 
 		private:
 			std::uint8_t numberOfBytesTransferred = 0; ///< The total number of bytes that have been processed in this session
+			std::uint32_t receivedFrameMask = 0; ///< Tracks which RX frame counters have already been stored
 			std::uint8_t sequenceNumber; ///< The sequence number for this PGN
 			CANIdentifier::CANPriority priority; ///< The priority to encode in the IDs of the component CAN messages
 		};
